@@ -13,6 +13,7 @@ interface DailyJournalProps {
   onMoodChange: (mood: Mood) => void;
   onPhotoChange: (photo: string | undefined) => void;
   disabled?: boolean;
+  highlight?: boolean;
 }
 
 export const DailyJournal: React.FC<DailyJournalProps> = ({
@@ -22,7 +23,8 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
   onNoteChange,
   onMoodChange,
   onPhotoChange,
-  disabled
+  disabled,
+  highlight
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [insight, setInsight] = useState<string | null>(null);
@@ -97,9 +99,17 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
   };
 
   return (
-    <div className="bg-surface border border-zinc-800 rounded-xl overflow-hidden mt-6">
+    <div 
+      id="daily-journal"
+      className={`
+        bg-surface border rounded-xl overflow-hidden mt-6 transition-all duration-500
+        ${highlight 
+          ? 'border-indigo-500 shadow-[0_0_30px_-5px_rgba(99,102,241,0.3)] ring-1 ring-indigo-500' 
+          : 'border-zinc-800'}
+      `}
+    >
       <div className="p-4 bg-zinc-900/50 border-b border-zinc-800 flex justify-between items-center">
-        <h3 className="font-semibold text-white flex items-center gap-2">
+        <h3 className={`font-semibold flex items-center gap-2 transition-colors ${highlight ? 'text-indigo-400' : 'text-white'}`}>
           Daily Journal
         </h3>
         <span className="text-xs text-zinc-500 uppercase tracking-wider">Evidence & Reflection</span>

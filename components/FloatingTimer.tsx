@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, X, Maximize2, Minimize2, RotateCcw, Headphones } from 'lucide-react';
+import { Play, Pause, X, Maximize2, Minimize2, RotateCcw, Headphones, Waves, Wind, CloudRain } from 'lucide-react';
 import { Habit } from '../types';
-import { soundService } from '../services/soundService';
+import { soundService, NoiseType } from '../services/soundService';
+import { FocusMode } from './FocusMode';
 
 interface FloatingTimerProps {
   habit: Habit | null;
@@ -12,10 +13,13 @@ interface FloatingTimerProps {
 
 export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, onTimerComplete }) => {
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false); // New State
   const [timeLeft, setTimeLeft] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [initialTime, setInitialTime] = useState(0);
   const [noiseEnabled, setNoiseEnabled] = useState(false);
+  const [noiseType, setNoiseType] = useState<NoiseType>('brown');
+  const [showNoiseMenu, setShowNoiseMenu] = useState(false);
 
   // When habit changes, reset
   useEffect(() => {
@@ -25,6 +29,8 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
       setIsActive(false);
       setIsMinimized(false);
       setNoiseEnabled(false);
+      setShowNoiseMenu(false);
+      setIsFocusMode(false);
       soundService.toggleFocusNoise(false);
     }
   }, [habit?.id]);
@@ -45,10 +51,7 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
       }, 1000);
     } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
-      // Use soundService for both audio and haptics to respect user settings
       soundService.playTimerFinished();
-      
-      // Calculate minutes focused
       const minutes = Math.floor(initialTime / 60);
       if (minutes > 0 && onTimerComplete && habit) {
         onTimerComplete(minutes, habit.id);
@@ -60,7 +63,18 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
   const toggleNoise = () => {
     const newState = !noiseEnabled;
     setNoiseEnabled(newState);
+    soundService.setNoiseType(noiseType);
     soundService.toggleFocusNoise(newState);
+  };
+
+  const changeNoiseType = (type: NoiseType) => {
+    setNoiseType(type);
+    soundService.setNoiseType(type);
+    if (!noiseEnabled) {
+       setNoiseEnabled(true);
+       soundService.toggleFocusNoise(true);
+    }
+    setShowNoiseMenu(false);
   };
 
   if (!habit) return null;
@@ -102,6 +116,22 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
     onClose();
   };
 
+  // --- RENDER FOCUS MODE ---
+  if (isFocusMode) {
+    return (
+        <FocusMode 
+            habit={habit}
+            timeLeft={timeLeft}
+            initialTime={initialTime}
+            isActive={isActive}
+            onToggle={toggleTimer}
+            onMinimize={() => setIsFocusMode(false)}
+            onStop={handleClose}
+            formatTime={formatTime}
+        />
+    );
+  }
+
   // Render Minimized (Pill)
   if (isMinimized) {
     return (
@@ -138,18 +168,43 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
     <div className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-50 animate-in zoom-in-95 duration-300">
       <div className="bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/80 w-72 overflow-hidden">
         {/* Header */}
-        <div className="bg-zinc-900/50 p-3 flex items-center justify-between border-b border-zinc-800">
+        <div className="bg-zinc-900/50 p-3 flex items-center justify-between border-b border-zinc-800 relative">
           <div className="flex items-center gap-2">
              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-             <span className="text-xs font-medium text-zinc-300 truncate max-w-[140px]">{habit.label}</span>
+             <span className="text-xs font-medium text-zinc-300 truncate max-w-[120px]">{habit.label}</span>
           </div>
           <div className="flex items-center gap-1">
-            <button 
-              onClick={toggleNoise}
-              className={`p-1.5 rounded-md transition-colors ${noiseEnabled ? 'text-indigo-400 bg-indigo-500/20' : 'text-zinc-500 hover:text-zinc-300'}`}
-              title="Toggle Brown Noise (Focus Sound)"
-            >
-              <Headphones size={14} />
+            <div className="relative">
+              <button 
+                onClick={() => setShowNoiseMenu(!showNoiseMenu)}
+                className={`p-1.5 rounded-md transition-colors ${noiseEnabled ? 'text-indigo-400 bg-indigo-500/20' : 'text-zinc-500 hover:text-zinc-300'}`}
+                title="Soundscapes"
+              >
+                <Headphones size={14} />
+              </button>
+              
+              {/* Noise Menu */}
+              {showNoiseMenu && (
+                <div className="absolute right-0 top-full mt-2 w-32 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl overflow-hidden z-20 flex flex-col">
+                   <button onClick={() => changeNoiseType('brown')} className={`px-3 py-2 text-xs text-left hover:bg-zinc-800 flex items-center gap-2 ${noiseType === 'brown' ? 'text-indigo-400' : 'text-zinc-400'}`}>
+                      <Waves size={12} /> Brown (Deep)
+                   </button>
+                   <button onClick={() => changeNoiseType('pink')} className={`px-3 py-2 text-xs text-left hover:bg-zinc-800 flex items-center gap-2 ${noiseType === 'pink' ? 'text-pink-400' : 'text-zinc-400'}`}>
+                      <CloudRain size={12} /> Pink (Soft)
+                   </button>
+                   <button onClick={() => changeNoiseType('white')} className={`px-3 py-2 text-xs text-left hover:bg-zinc-800 flex items-center gap-2 ${noiseType === 'white' ? 'text-white' : 'text-zinc-400'}`}>
+                      <Wind size={12} /> White (Mask)
+                   </button>
+                   <div className="h-px bg-zinc-800 my-1" />
+                   <button onClick={toggleNoise} className="px-3 py-2 text-xs text-left hover:bg-zinc-800 text-zinc-300">
+                      {noiseEnabled ? 'Turn Off' : 'Turn On'}
+                   </button>
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => setIsFocusMode(true)} className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white" title="Full Screen Focus">
+              <Maximize2 size={14} />
             </button>
             <button onClick={() => setIsMinimized(true)} className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-400">
               <Minimize2 size={14} />

@@ -71,6 +71,9 @@ function App() {
   // Shortcuts
   const [showShortcuts, setShowShortcuts] = useState(false);
 
+  // Journal Highlight State
+  const [highlightJournal, setHighlightJournal] = useState(false);
+
   // Initialize or Load Data
   useEffect(() => {
     const data = getProgress();
@@ -85,6 +88,25 @@ function App() {
     // Initialize preferences
     if (data.preferences) {
       soundService.updateSettings(data.preferences.soundEnabled, data.preferences.hapticsEnabled);
+    }
+
+    // Check for Shared Config URL Params
+    const params = new URLSearchParams(window.location.search);
+    const sharedConfig = params.get('config');
+    if (sharedConfig) {
+       try {
+          const decoded = JSON.parse(atob(sharedConfig));
+          if (decoded.days && decoded.habits && window.confirm(`Import Shared Challenge Protocol?\n\nDuration: ${decoded.days} Days\nHabits: ${decoded.habits.length}\nMode: ${decoded.mode || 'Standard'}\n\n⚠️ This will overwrite your current settings.`)) {
+             const newProgress = { ...data, totalDays: decoded.days, customHabits: decoded.habits, strictMode: decoded.mode === 'strict' };
+             setProgress(newProgress);
+             saveProgress(newProgress);
+             soundService.playSuccess();
+             // Clean URL
+             window.history.replaceState({}, document.title, window.location.pathname);
+          }
+       } catch (e) {
+          console.error("Invalid config");
+       }
     }
   }, []);
 
@@ -194,20 +216,33 @@ function App() {
 
     setProgress(newProgress);
     saveProgress(newProgress);
+
+    // Check if this was the last habit and guide to journal if notes are empty
+    if (newCompletedHabits.length === progress.customHabits.length && !isCompleted) {
+        if (!currentHistory.notes || currentHistory.notes.trim() === '') {
+           setHighlightJournal(true);
+           setTimeout(() => {
+              const journalEl = document.getElementById('daily-journal');
+              if (journalEl) {
+                 journalEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+           }, 100);
+           // Remove highlight after a few seconds
+           setTimeout(() => setHighlightJournal(false), 3000);
+        }
+    }
   };
 
   const handleUpdateNotes = (text: string) => {
-    if (viewingDay !== progress.currentDay) return;
+    // Allow editing even for past days (to fix history)
     updateDayData('notes', text);
   };
 
   const handleUpdateMood = (mood: Mood) => {
-    if (viewingDay !== progress.currentDay) return;
     updateDayData('mood', mood);
   };
 
   const handleUpdatePhoto = (photo: string | undefined) => {
-    if (viewingDay !== progress.currentDay) return;
     updateDayData('photo', photo);
   };
 
@@ -246,7 +281,7 @@ function App() {
   };
 
   const updateDayData = (key: keyof DayData, value: any) => {
-    const currentDayNum = progress.currentDay;
+    const currentDayNum = viewingDay; // Use viewingDay instead of currentDay
     const currentHistory = progress.history[currentDayNum] || { 
       date: new Date().toISOString(), 
       completedHabits: [], 
@@ -288,14 +323,16 @@ function App() {
     const totalHabits = progress.customHabits.length;
 
     let dayFrozen = false;
+    let freezeReason = "";
 
     if (completedCount < totalHabits) {
       // Logic for Streak Freeze
       if (progress.streakFreezes > 0) {
         soundService.playClick();
-        const useFreeze = window.confirm(`You haven't finished all habits. You have ${progress.streakFreezes} Streak Freeze(s). Use one to save your streak?`);
-        if (useFreeze) {
-          dayFrozen = true;
+        if (window.confirm(`You haven't finished all habits. You have ${progress.streakFreezes} Streak Freeze(s). Use one to save your streak?`)) {
+           dayFrozen = true;
+           const reason = window.prompt("Why are you freezing today? (e.g., Sick, Travel, Work)");
+           freezeReason = reason || "Unspecified";
         } else if (progress.strictMode) {
            soundService.playError();
            if (window.confirm("STRICT MODE: Failing this day will reset progress to Day 1. Confirm?")) {
@@ -383,7 +420,8 @@ function App() {
         ...progress.history,
         [progress.currentDay]: {
           ...todayData,
-          frozen: dayFrozen
+          frozen: dayFrozen,
+          freezeReason: dayFrozen ? freezeReason : undefined
         }
       },
       habitFocusDistribution: progress.habitFocusDistribution || {}
@@ -755,7 +793,9 @@ function App() {
                       onNoteChange={handleUpdateNotes}
                       onMoodChange={handleUpdateMood}
                       onPhotoChange={handleUpdatePhoto}
-                      disabled={!isCurrentDay}
+                      // Allow history editing
+                      disabled={false}
+                      highlight={highlightJournal}
                     />
                   </div>
                 )}

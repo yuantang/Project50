@@ -4,6 +4,8 @@
 // or simple oscillator beeps for a purely frontend solution without external assets.
 // To make it feel premium, we will use Web Audio API oscillators which require no external files.
 
+export type NoiseType = 'brown' | 'pink' | 'white';
+
 class SoundService {
   private ctx: AudioContext | null = null;
   private volume: number = 0.15;
@@ -12,6 +14,7 @@ class SoundService {
   private noiseNode: ScriptProcessorNode | null = null;
   private noiseGain: GainNode | null = null;
   private isNoisePlaying: boolean = false;
+  private currentNoiseType: NoiseType = 'brown';
 
   // Preferences
   private soundEnabled: boolean = true;
@@ -103,8 +106,17 @@ class SoundService {
     this.vibrate([500, 200, 500]); // Long buzz
   }
 
-  // --- Focus Noise (Brown Noise) ---
-  // Brown noise is deeper and better for reading/focus than white noise
+  // --- Focus Noise (Soundscapes) ---
+  
+  public setNoiseType(type: NoiseType) {
+    this.currentNoiseType = type;
+    if (this.isNoisePlaying) {
+      // Restart to apply new type
+      this.toggleFocusNoise(false);
+      setTimeout(() => this.toggleFocusNoise(true), 50);
+    }
+  }
+
   public toggleFocusNoise(enable: boolean) {
     if (enable && !this.soundEnabled) return;
 
@@ -117,19 +129,39 @@ class SoundService {
       
       this.noiseNode.onaudioprocess = (e) => {
         const output = e.outputBuffer.getChannelData(0);
-        let lastOut = 0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          // Brown noise filter: Integrate white noise
-          output[i] = (lastOut + (0.02 * white)) / 1.02;
-          lastOut = output[i];
-          // Compensate gain
-          output[i] *= 3.5; 
+        
+        if (this.currentNoiseType === 'white') {
+           for (let i = 0; i < bufferSize; i++) {
+             output[i] = Math.random() * 2 - 1;
+             output[i] *= 0.05; // Lower gain for white noise
+           }
+        } else if (this.currentNoiseType === 'pink') {
+           // Simple pink noise approximation (1/f)
+           // Using simple integration just to soften white noise
+           let lastOut = 0;
+           for (let i = 0; i < bufferSize; i++) {
+             const white = Math.random() * 2 - 1;
+             output[i] = (lastOut + (0.02 * white)) / 1.02;
+             lastOut = output[i];
+             output[i] *= 3.5;
+           }
+        } else {
+           // Brown Noise (Deep) - Standard integration
+           let lastOut = 0;
+           for (let i = 0; i < bufferSize; i++) {
+             const white = Math.random() * 2 - 1;
+             output[i] = (lastOut + (0.02 * white)) / 1.02;
+             lastOut = output[i];
+             output[i] *= 3.5; 
+           }
         }
       };
 
       this.noiseGain = this.ctx.createGain();
-      this.noiseGain.gain.value = 0.05; // Very subtle background rumble
+      // Adjust volume based on type
+      if (this.currentNoiseType === 'white') this.noiseGain.gain.value = 0.02;
+      else if (this.currentNoiseType === 'pink') this.noiseGain.gain.value = 0.04;
+      else this.noiseGain.gain.value = 0.06; // Brown is softer to the ear, can be louder
       
       this.noiseNode.connect(this.noiseGain);
       this.noiseGain.connect(this.ctx.destination);

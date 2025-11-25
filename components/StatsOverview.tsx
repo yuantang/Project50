@@ -5,7 +5,7 @@ import { UserProgress, DayData, Mood } from '../types';
 import { TrophyRoom } from './TrophyRoom';
 import { Gallery } from './Gallery';
 import { Heatmap } from './Heatmap';
-import { ChartBar, ImageIcon, Search, Sparkles, TrendingUp, TrendingDown, Target, Zap, Activity, ShoppingBag, Snowflake, Clock, Flame, RefreshCw } from 'lucide-react';
+import { ChartBar, ImageIcon, Search, Sparkles, TrendingUp, TrendingDown, ShoppingBag, Snowflake, Clock, Flame, RefreshCw, Zap, BookOpen } from 'lucide-react';
 import { getPatternAnalysis } from '../services/geminiService';
 import { SHOP_ITEMS, buyItem } from '../services/gamificationService';
 import { saveProgress } from '../services/storageService';
@@ -21,13 +21,10 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
   const [loadingPatterns, setLoadingPatterns] = useState(false);
 
   const { 
-    data, 
     chartData, 
     streak, 
     bestStreak, 
-    completionRate, 
     totalFocusMinutes,
-    habitStats, 
     focusData, 
     bestHabit, 
     worstHabit 
@@ -64,15 +61,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
     });
 
     const chartData = data.slice(0, Math.max(7, progress.currentDay));
-
-    const totalHabitsCompleted = Object.values(progress.history).reduce<number>((acc, curr: DayData) => {
-      return acc + (curr.completedHabits ? curr.completedHabits.length : 0);
-    }, 0);
-
-    const completionRate = Math.round(
-      (totalHabitsCompleted / 
-      (Math.max(1, progress.currentDay) * Math.max(1, habitCount))) * 100
-    );
 
     // Current Streak Calculation (Backwards from today)
     let currentStreak = 0;
@@ -126,11 +114,9 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
     })).filter(d => d.minutes > 0).sort((a, b) => b.minutes - a.minutes);
 
     return {
-        data,
         chartData,
         streak: currentStreak,
         bestStreak,
-        completionRate,
         totalFocusMinutes: progress.totalFocusMinutes || 0,
         habitStats,
         focusData,
@@ -143,7 +129,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
     setLoadingPatterns(true);
     const result = await getPatternAnalysis(progress);
     
-    // Save the new analysis to state and storage
     const newProgress = { 
       ...progress, 
       cachedPattern: {
@@ -160,7 +145,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
   const handleBuyItem = (itemId: string) => {
     const newItemProgress = buyItem(progress, itemId);
     if (newItemProgress) {
-      soundService.playSuccess(); // Purchase sound
+      soundService.playSuccess();
       saveProgress(newItemProgress);
       onUpdateProgress(newItemProgress);
     } else {
@@ -179,7 +164,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* Gamification Section - Collapsible to save space */}
+      {/* Gamification Section */}
       <TrophyRoom progress={progress} />
 
       {/* Tab Toggle */}
@@ -195,14 +180,14 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
           onClick={() => setActiveTab('gallery')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold transition-all uppercase tracking-wide ${activeTab === 'gallery' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
         >
-          <ImageIcon size={14} />
-          Transformation Gallery
+          <BookOpen size={14} />
+          Journal & Gallery
         </button>
       </div>
 
       {activeTab === 'charts' ? (
         <>
-          {/* Heatmap (Yearly Consistency) */}
+          {/* Main Visualizer: Challenge Grid */}
           <Heatmap progress={progress} />
 
           {/* Key Metrics Row */}
@@ -238,7 +223,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
 
           {/* Insights & Shop Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-             {/* AI Pattern Hunter (Takes 2 columns on large screens) */}
+             {/* AI Pattern Hunter */}
              <div className="lg:col-span-2 p-5 bg-indigo-950/10 border border-indigo-900/30 rounded-xl relative overflow-hidden group flex flex-col justify-between">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                    <Sparkles size={80} className="text-indigo-500" />
@@ -275,7 +260,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                   </div>
                 </div>
 
-                {/* Display Cached or New Pattern */}
                 {(progress.cachedPattern || loadingPatterns) && (
                    <div className="bg-black/20 p-3 rounded-lg border border-indigo-500/20 text-indigo-100 text-xs leading-relaxed animate-in fade-in relative">
                       {loadingPatterns ? (
@@ -295,7 +279,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                 )}
              </div>
 
-             {/* XP Shop (Takes 1 column) */}
+             {/* XP Shop */}
              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 relative overflow-hidden flex flex-col">
                  <div className="flex justify-between items-center mb-4 relative z-10">
                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
@@ -335,7 +319,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                    ))}
                  </div>
                  
-                 {/* Background glow */}
                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
              </div>
           </div>
@@ -434,7 +417,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
           {/* Consistency Chart */}
           <div className="h-48 bg-surface border border-zinc-800 rounded-xl p-4">
             <h3 className="text-xs font-bold text-zinc-400 mb-2 flex items-center gap-2 uppercase tracking-wide">
-              <Activity size={14} />
+              <TrendingUp size={14} />
               Habit Completion History
             </h3>
             <ResponsiveContainer width="100%" height="85%">
@@ -460,30 +443,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
-
-          <div className="bg-surface border border-zinc-800 rounded-xl p-6">
-            <h3 className="text-xs font-bold text-zinc-400 mb-4 uppercase tracking-wide">{progress.totalDays || 50} Day Grid</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {data.map((d, i) => (
-                <div 
-                  key={i}
-                  className={`
-                    w-6 h-6 sm:w-8 sm:h-8 rounded-md flex items-center justify-center text-[10px] sm:text-xs font-medium transition-all
-                    ${d.isFuture 
-                      ? 'bg-zinc-900 text-zinc-700 border border-zinc-800' 
-                      : d.full 
-                        ? 'bg-emerald-500 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]' 
-                        : d.frozen
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
-                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700'}
-                  `}
-                  title={d.full ? 'Completed' : d.frozen ? 'Frozen (Saved)' : d.isFuture ? 'Future' : 'Incomplete'}
-                >
-                  {d.frozen ? <Snowflake size={10} /> : i + 1}
-                </div>
-              ))}
-            </div>
           </div>
         </>
       ) : (

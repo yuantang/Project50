@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   User, Target, HardDrive, AlertTriangle, ChevronLeft, ChevronRight, 
   Bot, ArrowUp, ArrowDown, Trash, Plus, Download, Upload, FileSpreadsheet, 
-  Eraser, Info, Shield, HelpCircle, Volume2, VolumeX, Vibrate, VibrateOff
+  Eraser, Info, Shield, HelpCircle, Volume2, VolumeX, Vibrate, VibrateOff, Share2, Copy
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { UserProgress, Habit, DEFAULT_HABITS } from '../types';
@@ -196,6 +196,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
     }
   };
 
+  const handleShareConfig = () => {
+    try {
+      const config = { days: editDays, habits: editHabits, mode: editStrictMode ? 'strict' : 'normal' };
+      const encoded = btoa(JSON.stringify(config));
+      const url = `${window.location.origin}?config=${encoded}`;
+      navigator.clipboard.writeText(url);
+      soundService.playSuccess();
+      alert("Share Link Copied! Send this to a friend to clone your challenge.");
+    } catch (e) {
+      alert("Failed to generate link.");
+    }
+  };
+
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -306,10 +319,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
       {/* --- Challenge View --- */}
       {view === 'challenge' && (
         <div className="p-6 bg-surface border border-zinc-800 rounded-xl space-y-8">
-          <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-              <Target size={20} className="text-emerald-500" />
-              Challenge Configuration
-          </h2>
+          <div className="flex justify-between items-start">
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <Target size={20} className="text-emerald-500" />
+                Challenge Configuration
+            </h2>
+            <button 
+              onClick={handleShareConfig}
+              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-lg text-xs font-medium text-emerald-400 transition-colors"
+              title="Generate a link to share this setup"
+            >
+              <Share2 size={14} />
+              Share Protocol
+            </button>
+          </div>
 
           <div>
               <label className="block text-sm text-zinc-400 mb-2">Apply Template</label>

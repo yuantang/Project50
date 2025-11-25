@@ -15,6 +15,7 @@ export interface DayData {
   mood?: Mood;
   photo?: string; // Base64 encoded image string
   frozen?: boolean; // If true, this day counts towards streak even if incomplete
+  freezeReason?: string; // Context for why the freeze was used
 }
 
 export interface Badge {
