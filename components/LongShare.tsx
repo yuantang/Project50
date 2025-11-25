@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { UserProgress } from '../types';
+import { UserProgress, DayData } from '../types';
 import { Trophy, Quote, Download, Loader2, Check, Flame, Star } from 'lucide-react';
 import { Heatmap } from './Heatmap';
 
@@ -48,7 +48,7 @@ export const LongShare: React.FC<LongShareProps> = ({ progress }) => {
   };
 
   const completionRate = Math.round(
-    (Object.values(progress.history).reduce((acc, day) => acc + day.completedHabits.length, 0) / 
+    ((Object.values(progress.history) as DayData[]).reduce((acc, day) => acc + day.completedHabits.length, 0) / 
     (Math.max(1, progress.currentDay) * progress.customHabits.length)) * 100
   ) || 0;
 
