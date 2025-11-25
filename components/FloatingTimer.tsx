@@ -13,7 +13,7 @@ interface FloatingTimerProps {
 
 export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, onTimerComplete }) => {
   const [isMinimized, setIsMinimized] = useState(false);
-  const [isFocusMode, setIsFocusMode] = useState(false); // New State
+  const [isFocusMode, setIsFocusMode] = useState(false); 
   const [timeLeft, setTimeLeft] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [initialTime, setInitialTime] = useState(0);

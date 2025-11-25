@@ -44,7 +44,7 @@ export const ShareCard: React.FC<ShareCardProps> = ({ progress, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-      <div className={`relative w-full ${mode === 'long' ? 'max-w-md h-[85vh]' : 'max-w-sm'} rounded-[32px] overflow-hidden shadow-2xl group bg-zinc-900 border border-zinc-800 flex flex-col`}>
+      <div className={`relative w-full ${mode === 'long' ? 'max-w-md h-[90vh]' : 'max-w-sm'} rounded-[32px] overflow-hidden shadow-2xl group bg-zinc-900 border border-zinc-800 flex flex-col transition-all duration-500`}>
         
         {/* Header Controls */}
         <div className="absolute top-4 right-4 z-30 flex gap-2">
@@ -73,7 +73,7 @@ export const ShareCard: React.FC<ShareCardProps> = ({ progress, onClose }) => {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col">
         {mode === 'long' ? (
             <LongShare progress={progress} />
         ) : (
