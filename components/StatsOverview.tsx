@@ -4,6 +4,7 @@ import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
 import { UserProgress, DayData, Mood } from '../types';
 import { TrophyRoom } from './TrophyRoom';
 import { Gallery } from './Gallery';
+import { Heatmap } from './Heatmap';
 import { ChartBar, ImageIcon, Search, Sparkles, TrendingUp, TrendingDown, Target, Zap, Activity, ShoppingBag, Snowflake, Clock, Flame, RefreshCw } from 'lucide-react';
 import { getPatternAnalysis } from '../services/geminiService';
 import { SHOP_ITEMS, buyItem } from '../services/gamificationService';
@@ -201,6 +202,9 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
 
       {activeTab === 'charts' ? (
         <>
+          {/* Heatmap (Yearly Consistency) */}
+          <Heatmap progress={progress} />
+
           {/* Key Metrics Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="p-4 bg-surface border border-zinc-800 rounded-xl">

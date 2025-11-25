@@ -2,13 +2,14 @@
 import React, { useState } from 'react';
 import * as Icons from 'lucide-react';
 import { Habit } from '../types';
-import { Timer, Flame } from 'lucide-react';
+import { Timer, Flame, Lightbulb } from 'lucide-react';
 
 interface HabitCardProps {
   habit: Habit;
   completed: boolean;
   onToggle: (id: string) => void;
   onOpenTimer?: (habit: Habit) => void;
+  onOpenGuide?: (habit: Habit) => void;
   disabled?: boolean;
   streak?: number;
   shortcutKey?: number; // New prop for visual hint
@@ -19,6 +20,7 @@ export const HabitCard: React.FC<HabitCardProps> = ({
   completed, 
   onToggle, 
   onOpenTimer,
+  onOpenGuide,
   disabled,
   streak = 0,
   shortcutKey
@@ -127,19 +129,34 @@ export const HabitCard: React.FC<HabitCardProps> = ({
           </div>
         </div>
 
-        {/* Timer Button (Separate from main toggle) */}
-        {!disabled && onOpenTimer && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenTimer(habit);
-            }}
-            className="p-4 text-zinc-600 hover:text-emerald-400 hover:bg-zinc-800 transition-colors border-l border-zinc-800/50 relative z-10"
-            title="Start Focus Timer"
-          >
-            <Timer size={20} />
-          </button>
-        )}
+        {/* Buttons */}
+        <div className="flex items-center border-l border-zinc-800/50">
+          {!disabled && onOpenGuide && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenGuide(habit);
+              }}
+              className="p-4 text-zinc-600 hover:text-yellow-400 hover:bg-zinc-800 transition-colors relative z-10"
+              title="Get AI Advice"
+            >
+              <Lightbulb size={20} />
+            </button>
+          )}
+
+          {!disabled && onOpenTimer && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenTimer(habit);
+              }}
+              className="p-4 text-zinc-600 hover:text-emerald-400 hover:bg-zinc-800 transition-colors relative z-10 border-l border-zinc-800/50"
+              title="Start Focus Timer"
+            >
+              <Timer size={20} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -45,7 +45,7 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
       }, 1000);
     } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
-      if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+      // Use soundService for both audio and haptics to respect user settings
       soundService.playTimerFinished();
       
       // Calculate minutes focused

@@ -35,6 +35,7 @@ import { AchievementModal, AchievementEvent } from './components/AchievementModa
 import { Onboarding } from './components/Onboarding';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { SettingsView } from './components/SettingsView';
+import { HabitGuideModal } from './components/HabitGuideModal';
 
 // Global declaration for canvas-confetti
 declare var confetti: any;
@@ -56,6 +57,9 @@ function App() {
 
   // Global Timer State
   const [activeTimerHabit, setActiveTimerHabit] = useState<Habit | null>(null);
+  
+  // AI Guide Modal State
+  const [activeGuideHabit, setActiveGuideHabit] = useState<Habit | null>(null);
 
   // Navigation State
   const [viewingDay, setViewingDay] = useState<number>(progress.currentDay);
@@ -486,6 +490,15 @@ function App() {
       
       {/* Shortcuts Help Modal */}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      
+      {/* AI Habit Guide Modal */}
+      {activeGuideHabit && (
+        <HabitGuideModal 
+          habit={activeGuideHabit} 
+          onClose={() => setActiveGuideHabit(null)} 
+          onStartTimer={(h) => setActiveTimerHabit(h)}
+        />
+      )}
 
       {/* Share Modal */}
       {showShareCard && (
@@ -706,6 +719,7 @@ function App() {
                         completed={isCompleted}
                         onToggle={handleToggleHabit}
                         onOpenTimer={(h) => setActiveTimerHabit(h)}
+                        onOpenGuide={(h) => setActiveGuideHabit(h)}
                         disabled={!isCurrentDay}
                         streak={getHabitStreak(habit.id)}
                         shortcutKey={index + 1}

@@ -196,3 +196,26 @@ export const getJournalInsight = async (note: string, mood: string): Promise<str
     return "Keep documenting your journey.";
   }
 };
+
+export const getHabitGuide = async (habitLabel: string, habitDesc: string): Promise<string> => {
+  try {
+    const prompt = `
+      You are an elite discipline coach. The user needs a micro-plan for the habit: "${habitLabel}".
+      Context: "${habitDesc}".
+      
+      Give a specific, 3-step actionable micro-guide for executing this TODAY. 
+      Make it concrete (e.g., "Read Chapter 3 of a non-fiction book", "Do 3 sets of pushups").
+      Keep the entire response under 40 words.
+      Format: Just the steps, numbered.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    return response.text || "1. Start immediately.\n2. Focus for 10 minutes.\n3. Don't stop until done.";
+  } catch (error) {
+    return "Execute without hesitation.";
+  }
+};
