@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Trophy, 
@@ -14,13 +15,18 @@ import {
   Bot,
   MessageSquare,
   Zap,
-  Snowflake
+  Snowflake,
+  WifiOff,
+  Cloud,
+  User,
+  LogOut
 } from 'lucide-react';
 import { UserProgress, Habit, Mood } from './types';
-import { getProgress, saveProgress, startChallenge, resetChallenge } from './services/storageService';
+import { getProgress, saveProgress, startChallenge, resetChallenge, syncFromCloud } from './services/storageService';
 import { getDailyMotivation, getEmergencyPepTalk } from './services/geminiService';
 import { soundService } from './services/soundService';
 import { checkBadges, calculateLevel } from './services/gamificationService';
+import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 import { HabitCard } from './components/HabitCard';
 import { StatsOverview } from './components/StatsOverview';
 import { DailyJournal } from './components/DailyJournal';
@@ -78,6 +84,10 @@ export default function App() {
   // Journal Highlight State
   const [highlightJournal, setHighlightJournal] = useState(false);
 
+  // Network & Sync State
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [userSession, setUserSession] = useState<any>(null);
+
   // Derived: Is "Perfect Day"? (All habits done + Journal filled + Mood selected)
   const isPerfectDay = (() => {
     const dayData = progress.history[viewingDay];
@@ -124,6 +134,43 @@ export default function App() {
        } catch (e) {
           console.error("Invalid config");
        }
+    }
+    
+    // Setup Supabase Listener
+    if (isSupabaseConfigured()) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+         setUserSession(session);
+         if (session) {
+           syncFromCloud().then((cloudData) => {
+             if (cloudData) {
+               setProgress(cloudData);
+               setViewingDay(cloudData.currentDay);
+             }
+           });
+         }
+      });
+      
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUserSession(session);
+        // Re-sync on login detection
+        if (_event === 'SIGNED_IN' && session) {
+           syncFromCloud().then(d => d && setProgress(d));
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+
+  }, []);
+
+  // Network Listener
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     }
   }, []);
 
@@ -203,6 +250,7 @@ export default function App() {
   useEffect(() => {
     const fetchMotivation = async () => {
       setLoadingMotiv(true);
+      // Pass isOnline to service? Service checks navigator.onLine itself.
       const msg = await getDailyMotivation(progress.currentDay, progress.totalDays, progress.aiPersona, progress.customPersonaPrompt);
       setMotivation(msg);
       setLoadingMotiv(false);
@@ -210,7 +258,7 @@ export default function App() {
     if (currentView === 'dashboard') {
         fetchMotivation();
     }
-  }, [progress.currentDay, progress.totalDays, progress.aiPersona, currentView]);
+  }, [progress.currentDay, progress.totalDays, progress.aiPersona, currentView, isOnline]);
 
   // Achievement Queue Processor
   useEffect(() => {
@@ -481,6 +529,13 @@ export default function App() {
     saveProgress(newProgress);
   };
 
+  const handleSignOut = async () => {
+     if (confirm("Are you sure you want to sign out?")) {
+        await supabase.auth.signOut();
+        setUserSession(null);
+     }
+  };
+
   const isHistoryMode = viewingDay < progress.currentDay;
   const isFutureMode = viewingDay > progress.currentDay;
   const isFrozenDay = !!progress.history[viewingDay]?.frozen;
@@ -493,6 +548,14 @@ export default function App() {
     <div className={`
       min-h-screen bg-background text-zinc-100 font-sans selection:bg-emerald-500/30 selection:text-emerald-200
     `}>
+      {/* Network Status Bar */}
+      {!isOnline && (
+         <div className="fixed top-0 left-0 right-0 bg-yellow-600 text-white text-[10px] font-bold text-center py-1 z-[60] flex items-center justify-center gap-2">
+            <WifiOff size={12} />
+            <span>OFFLINE MODE: AI features are limited. Data will sync when online.</span>
+         </div>
+      )}
+
       {/* Privacy Blur Overlay */}
       {isBlurred && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xl flex items-center justify-center pointer-events-none">
@@ -565,7 +628,7 @@ export default function App() {
         
         {/* Header */}
         {!zenMode && (
-          <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-zinc-800 p-4">
+          <header className={`sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-zinc-800 p-4 ${!isOnline ? 'mt-6' : ''}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button 
@@ -764,7 +827,13 @@ export default function App() {
           )}
 
           {currentView === 'settings' && (
-             <SettingsView progress={progress} onUpdate={setProgress} onReset={() => { resetChallenge(); window.location.reload(); }} />
+             <SettingsView 
+               progress={progress} 
+               onUpdate={setProgress} 
+               onReset={() => { resetChallenge(); window.location.reload(); }}
+               userSession={userSession}
+               onLogoutRequest={handleSignOut}
+             />
           )}
 
         </main>

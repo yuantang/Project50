@@ -1,11 +1,13 @@
 
 import { UserProgress, DEFAULT_HABITS } from '../types';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const STORAGE_KEY = 'project50_data_v12'; // Bumped version for habitLogs support
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.3.2';
 
 const INITIAL_STATE: UserProgress = {
   userName: "",
+  avatar: undefined,
   currentDay: 1,
   totalDays: 50,
   startDate: null,
@@ -25,11 +27,15 @@ const INITIAL_STATE: UserProgress = {
   cachedPattern: undefined,
   preferences: {
     soundEnabled: true,
-    hapticsEnabled: true
-  }
+    hapticsEnabled: true,
+    privacyBlurEnabled: false
+  },
+  updatedAt: new Date().toISOString()
 };
 
 export const getAppVersion = () => APP_VERSION;
+
+// --- Local Storage Operations ---
 
 export const getProgress = (): UserProgress => {
   try {
@@ -52,8 +58,9 @@ export const getProgress = (): UserProgress => {
     if (parsed.streakFreezes === undefined) parsed.streakFreezes = 0;
     if (parsed.aiPersona === undefined) parsed.aiPersona = 'stoic';
     if (parsed.preferences === undefined) {
-      parsed.preferences = { soundEnabled: true, hapticsEnabled: true };
+      parsed.preferences = { soundEnabled: true, hapticsEnabled: true, privacyBlurEnabled: false };
     }
+    // Avatar migration check (implicit: if undefined, it stays undefined)
     
     // Migrate History to include habitLogs if missing
     if (parsed.history) {
@@ -72,17 +79,92 @@ export const getProgress = (): UserProgress => {
   }
 };
 
-export const saveProgress = (progress: UserProgress) => {
+export const saveProgress = async (progress: UserProgress, skipCloud: boolean = false) => {
+  const updatedProgress = { ...progress, updatedAt: new Date().toISOString() };
+  
+  // 1. Save Local (Offline First)
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProgress));
   } catch (e) {
-    console.error("Failed to save progress", e);
-    // If quota exceeded, alert user (basic handling)
+    console.error("Failed to save progress locally", e);
     if (e instanceof DOMException && e.name === 'QuotaExceededError') {
       alert("Storage full! Please delete some photos in Settings.");
     }
   }
+
+  // 2. Sync to Cloud (if configured and online)
+  if (!skipCloud && isSupabaseConfigured() && navigator.onLine) {
+    syncToCloud(updatedProgress);
+  }
 };
+
+// --- Cloud Sync Operations ---
+
+const syncToCloud = async (progress: UserProgress) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return; // Not logged in
+
+    const { error } = await supabase
+      .from('user_progress')
+      .upsert({ 
+        user_id: user.id, 
+        data: progress,
+        updated_at: new Date().toISOString() 
+      }, { onConflict: 'user_id' });
+
+    if (error) throw error;
+    
+    // Update last synced time locally
+    const syncedProgress = { ...progress, lastSyncedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(syncedProgress));
+    
+  } catch (e) {
+    console.error("Cloud sync failed:", e);
+    // Silent fail is okay for offline-first, logic handles retry on next save/load
+  }
+};
+
+export const syncFromCloud = async (): Promise<UserProgress | null> => {
+  if (!isSupabaseConfigured() || !navigator.onLine) return null;
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_progress')
+      .select('data, updated_at')
+      .eq('user_id', user.id)
+      .single();
+
+    if (error || !data) return null;
+
+    const cloudProgress = data.data as UserProgress;
+    const localProgress = getProgress();
+
+    // Conflict Resolution: Last Write Wins based on updatedAt
+    const cloudTime = new Date(data.updated_at).getTime();
+    const localTime = new Date(localProgress.updatedAt || 0).getTime();
+
+    if (cloudTime > localTime) {
+      console.log("Cloud data is newer. Syncing down.");
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudProgress));
+      return cloudProgress;
+    } else if (localTime > cloudTime) {
+      console.log("Local data is newer. Syncing up.");
+      await syncToCloud(localProgress);
+      return null; // Local is already up to date
+    }
+    
+    return null;
+  } catch (e) {
+    console.error("Sync from cloud failed", e);
+    return null;
+  }
+};
+
+// --- Export/Import Utilities ---
 
 export const startChallenge = (totalDays: number = 50, habits = DEFAULT_HABITS): UserProgress => {
   const newState: UserProgress = {
@@ -115,7 +197,6 @@ export const exportData = (): void => {
 
 export const exportCSV = (): void => {
   const progress = getProgress();
-  // CSV Headers: Includes specific columns for each habit's note
   const headers = ['Date', 'Day', 'Completed Count', 'Mood', 'Notes', 'Frozen', ...progress.customHabits.map(h => h.label), ...progress.customHabits.map(h => `${h.label} Details`)];
   
   const rows = Object.entries(progress.history).map(([dayStr, data]) => {
@@ -127,7 +208,7 @@ export const exportCSV = (): void => {
       dayStr,
       data.completedHabits.length,
       data.mood || '',
-      `"${(data.notes || '').replace(/"/g, '""')}"`, // Escape quotes
+      `"${(data.notes || '').replace(/"/g, '""')}"`,
       data.frozen ? 'YES' : 'NO',
       ...habitStatuses,
       ...habitNotes
@@ -153,7 +234,6 @@ export const importData = (file: File): Promise<boolean> => {
         const result = e.target?.result as string;
         const parsed = JSON.parse(result);
         
-        // Basic validation
         if (parsed.history && parsed.customHabits && typeof parsed.currentDay === 'number') {
           saveProgress(parsed);
           resolve(true);
@@ -170,18 +250,13 @@ export const importData = (file: File): Promise<boolean> => {
   });
 };
 
-// --- Storage Management Utilities ---
-
 export const getStorageUsage = (): { usedKB: number; percent: number } => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY) || '';
     const usedBytes = new Blob([stored]).size;
     const usedKB = Math.round(usedBytes / 1024);
-    
-    // LocalStorage limit is typically ~5MB (5120KB)
     const limitKB = 5120; 
     const percent = Math.min(100, Math.round((usedKB / limitKB) * 100));
-    
     return { usedKB, percent };
   } catch (e) {
     return { usedKB: 0, percent: 0 };
@@ -193,7 +268,7 @@ export const clearOldPhotos = (keepRecentDays: number = 30): void => {
   const currentDay = progress.currentDay;
   const cutoffDay = currentDay - keepRecentDays;
 
-  if (cutoffDay < 1) return; // Nothing to clean
+  if (cutoffDay < 1) return;
 
   let cleanedCount = 0;
   const newHistory = { ...progress.history };
@@ -201,7 +276,7 @@ export const clearOldPhotos = (keepRecentDays: number = 30): void => {
   Object.keys(newHistory).forEach((dayStr) => {
     const day = parseInt(dayStr);
     if (day <= cutoffDay && newHistory[day].photo) {
-      newHistory[day] = { ...newHistory[day], photo: undefined }; // Remove photo
+      newHistory[day] = { ...newHistory[day], photo: undefined };
       cleanedCount++;
     }
   });

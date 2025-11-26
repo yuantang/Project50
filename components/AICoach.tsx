@@ -143,8 +143,16 @@ export const AICoach: React.FC<AICoachProps> = ({ progress, onClose }) => {
               className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
             >
               {/* Avatar */}
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-auto ${isUser ? 'bg-zinc-800' : 'bg-indigo-900/30 border border-indigo-500/30'}`}>
-                 {isUser ? <User size={14} className="text-zinc-400" /> : <Bot size={14} className="text-indigo-400" />}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-auto overflow-hidden ${isUser ? 'bg-zinc-800' : 'bg-indigo-900/30 border border-indigo-500/30'}`}>
+                 {isUser ? (
+                    progress.avatar ? (
+                      <img src={progress.avatar} alt="Me" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={14} className="text-zinc-400" />
+                    )
+                 ) : (
+                    <Bot size={14} className="text-indigo-400" />
+                 )}
               </div>
 
               <div 

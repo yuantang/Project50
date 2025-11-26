@@ -30,6 +30,7 @@ export interface Badge {
 
 export interface UserProgress {
   userName?: string; // Identity
+  avatar?: string; // Base64 string for user profile picture
   currentDay: number; // 1 to totalDays
   totalDays: number; // Configurable duration
   startDate: string | null;
@@ -60,6 +61,9 @@ export interface UserProgress {
       time: string; // "09:00"
     };
   };
+  // Sync Fields
+  lastSyncedAt?: string; // ISO Date of last successful cloud sync
+  updatedAt?: string; // ISO Date of last local modification
 }
 
 export interface AIResponse {

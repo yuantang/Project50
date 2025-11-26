@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Target, HardDrive, TriangleAlert, ChevronLeft, ChevronRight, 
   Bot, ArrowUp, ArrowDown, Trash, Plus, Download, Upload, FileSpreadsheet, 
   Eraser, Info, Shield, CircleHelp, Volume2, VolumeX, Vibrate, VibrateOff, 
   Share2, Save, Bell, BellOff, Clock, LayoutTemplate, Palette, Check, Lock, Eye,
-  CircleAlert
+  CircleAlert, Cloud, CloudOff, LogOut, Camera, Loader2, Mail, LockKeyhole,
+  Smartphone, ShieldCheck, Sparkles
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { UserProgress, Habit, DEFAULT_HABITS } from '../types';
@@ -13,6 +15,7 @@ import {
   exportCSV, importData, getStorageUsage, clearOldPhotos, getAppVersion 
 } from '../services/storageService';
 import { soundService } from '../services/soundService';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
 type SettingsState = 'menu' | 'account' | 'challenge' | 'data' | 'preferences' | 'info' | 'danger';
 
@@ -99,19 +102,35 @@ interface SettingsViewProps {
   progress: UserProgress;
   onUpdate: (newProgress: UserProgress) => void;
   onReset: () => void;
+  userSession?: any;
+  onLogoutRequest?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, onReset }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ 
+  progress, 
+  onUpdate, 
+  onReset,
+  userSession,
+  onLogoutRequest
+}) => {
   const [view, setView] = useState<SettingsState>('menu');
   
   // Local Edit State
   const [editName, setEditName] = useState(progress.userName || "");
+  const [editAvatar, setEditAvatar] = useState(progress.avatar);
   const [editPersona, setEditPersona] = useState(progress.aiPersona || 'stoic');
   const [editCustomPrompt, setEditCustomPrompt] = useState(progress.customPersonaPrompt || "");
   const [editHabits, setEditHabits] = useState<Habit[]>(progress.customHabits);
   const [editDays, setEditDays] = useState(progress.totalDays);
   const [editStrictMode, setEditStrictMode] = useState(progress.strictMode);
   
+  // Auth State
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // Preferences
   const [preferences, setPreferences] = useState(progress.preferences || { 
     soundEnabled: true, 
@@ -126,6 +145,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
   const [manualDayInput, setManualDayInput] = useState(progress.currentDay);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isAddingHabit, setIsAddingHabit] = useState(false);
+  const [isCompressingAvatar, setIsCompressingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Permission State
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
@@ -140,12 +161,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
       editDays !== progress.totalDays ||
       editStrictMode !== progress.strictMode ||
       editName !== (progress.userName || "") ||
+      editAvatar !== progress.avatar ||
       editPersona !== progress.aiPersona ||
       editCustomPrompt !== (progress.customPersonaPrompt || "") ||
       JSON.stringify(preferences) !== JSON.stringify(progress.preferences);
     
     setHasUnsavedChanges(isDirty);
-  }, [editHabits, editDays, editStrictMode, editName, editPersona, editCustomPrompt, preferences, progress]);
+  }, [editHabits, editDays, editStrictMode, editName, editAvatar, editPersona, editCustomPrompt, preferences, progress]);
 
   // Refresh storage stats when entering data view
   useEffect(() => {
@@ -159,6 +181,87 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
     }
   }, []);
 
+  // Avatar Compression Helper
+  const compressAvatar = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const size = 200; // 200x200 avatar
+      const quality = 0.7;
+
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          
+          // Crop to square center
+          const minDim = Math.min(img.width, img.height);
+          const sx = (img.width - minDim) / 2;
+          const sy = (img.height - minDim) / 2;
+
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          
+          // Draw cropped image to canvas
+          ctx?.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+
+          // Compress to JPEG
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isSupabaseConfigured()) {
+       setAuthError("Database connection missing.");
+       return;
+    }
+
+    setAuthLoading(true);
+    setAuthError(null);
+
+    try {
+      if (authMode === 'signup') {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        alert("Check your email for the confirmation link!");
+        setAuthMode('signin');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        soundService.playSuccess();
+        // State update happens via subscription in App.tsx
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Authentication failed");
+      soundService.playError();
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        setIsCompressingAvatar(true);
+        const compressedBase64 = await compressAvatar(file);
+        setEditAvatar(compressedBase64);
+      } catch (error) {
+        alert("Failed to process image.");
+      } finally {
+        setIsCompressingAvatar(false);
+      }
+    }
+  };
+
   const handleSave = () => {
     if (editHabits.length === 0) {
       alert("You need at least one habit.");
@@ -167,6 +270,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
     const newProgress = {
       ...progress,
       userName: editName,
+      avatar: editAvatar,
       totalDays: editDays,
       customHabits: editHabits,
       strictMode: editStrictMode,
@@ -245,10 +349,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
 
     const current = preferences.notifications || { enabled: false, time: "09:00" };
     
-    // Logic: 
-    // If enabling: Check permission. If default, request. If denied, show error.
-    // If disabling: Just disable.
-
     if (!current.enabled) {
       if (permissionStatus === 'denied') {
         soundService.playError();
@@ -321,7 +421,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
       setTimeout(() => setIsCopied(false), 2500);
       
     } catch (e) {
-      // Fallback for security contexts where writeText is blocked
       const config = { days: editDays, habits: editHabits, mode: editStrictMode ? 'strict' : 'normal' };
       const encoded = btoa(JSON.stringify(config));
       const url = `${window.location.origin}?config=${encoded}`;
@@ -344,11 +443,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
   if (view === 'menu') {
     return (
       <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-        <h2 className="text-3xl font-black text-white mb-8 tracking-tight">Settings</h2>
+        <h2 className="text-3xl font-black text-white mb-6 tracking-tight">Settings</h2>
         
         <div className="grid gap-3">
           {[
-            { id: 'account', icon: User, label: 'Profile & Persona', sub: 'Name, AI Personality', color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+            // DYNAMIC PROFILE ENTRY
+            { 
+              id: 'account', 
+              icon: userSession && progress.avatar ? 'AVATAR' : (userSession ? User : Cloud), 
+              label: userSession ? (progress.userName || 'My Profile') : 'Log In / Sign Up', 
+              sub: userSession ? 'Manage Account & Sync' : 'Enable Cloud Sync & Backup', 
+              color: userSession ? 'text-emerald-400' : 'text-indigo-400', 
+              bg: userSession ? 'bg-emerald-500/10' : 'bg-indigo-500/10', 
+              border: userSession ? 'border-emerald-500/30 shadow-[0_0_15px_-5px_rgba(16,185,129,0.2)]' : 'border-indigo-500/20' 
+            },
             { id: 'challenge', icon: Target, label: 'Habits & Protocol', sub: 'Templates, Duration, Goals', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
             { id: 'preferences', icon: Volume2, label: 'App Preferences', sub: 'Sound, Haptics, Privacy', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
             { id: 'data', icon: HardDrive, label: 'Data Management', sub: 'Backup, Restore, Storage', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
@@ -361,8 +469,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
               className={`w-full flex items-center justify-between p-5 rounded-2xl border transition-all hover:scale-[1.01] active:scale-[0.99] group ${item.bg} ${item.border}`}
             >
               <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl bg-black/20 ${item.color}`}>
-                  <item.icon size={24} />
+                <div className={`relative p-3 rounded-xl bg-black/20 ${item.color} overflow-hidden`}>
+                  {item.icon === 'AVATAR' && progress.avatar ? (
+                    <img src={progress.avatar} className="absolute inset-0 w-full h-full object-cover" alt="User" />
+                  ) : (
+                    item.icon !== 'AVATAR' && <item.icon size={24} />
+                  )}
                 </div>
                 <div className="text-left">
                   <p className="font-bold text-white text-lg leading-tight">{item.label}</p>
@@ -392,17 +504,196 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ progress, onUpdate, 
       {/* --- Account View --- */}
       {view === 'account' && (
         <div className="bg-surface border border-zinc-800 rounded-2xl p-6 md:p-8 space-y-8">
-          <div className="flex items-center gap-3 mb-2">
-             <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
-               <User size={24} />
-             </div>
-             <div>
-               <h2 className="text-xl font-bold text-white">Identity</h2>
-               <p className="text-zinc-500 text-sm">Who is taking the challenge?</p>
-             </div>
-          </div>
           
-          <div className="space-y-4">
+          {/* Integrated Authentication Section */}
+          <div className="rounded-2xl border border-zinc-800 overflow-hidden">
+             {userSession ? (
+               // LOGGED IN STATE
+               <div className="p-6 bg-emerald-950/10 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 w-full">
+                     <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-full shrink-0 border border-emerald-500/10">
+                        <Cloud size={24} />
+                     </div>
+                     <div className="min-w-0">
+                        <h3 className="font-bold text-emerald-400 text-lg">Cloud Sync Active</h3>
+                        <p className="text-sm text-zinc-400 truncate">
+                           Signed in as {userSession.user.email}
+                        </p>
+                     </div>
+                  </div>
+                  <button 
+                    onClick={onLogoutRequest}
+                    className="w-full md:w-auto px-6 py-3 bg-black/40 hover:bg-red-950/50 border border-white/5 hover:border-red-900/30 text-zinc-300 hover:text-red-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <LogOut size={16} />
+                    Sign Out
+                  </button>
+               </div>
+             ) : (
+               // LOGGED OUT HERO CARD
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                  {/* Left: Value Props */}
+                  <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-black p-8 flex flex-col justify-center relative overflow-hidden">
+                     <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/2" />
+                     
+                     <div className="relative z-10">
+                       <h3 className="text-2xl font-black text-white mb-2 tracking-tight">Sync Your Progress</h3>
+                       <p className="text-sm text-zinc-500 mb-8">Protect your streak and access your data from any device.</p>
+                       
+                       <div className="space-y-6">
+                          <div className="flex gap-4 items-start">
+                             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500 border border-emerald-500/20">
+                                <Cloud size={20} />
+                             </div>
+                             <div>
+                                <p className="text-sm font-bold text-white">Always Synced</p>
+                                <p className="text-xs text-zinc-500 leading-relaxed">Automatic backup to the cloud. Never lose your history.</p>
+                             </div>
+                          </div>
+                          <div className="flex gap-4 items-start">
+                             <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500 border border-purple-500/20">
+                                <ShieldCheck size={20} />
+                             </div>
+                             <div>
+                                <p className="text-sm font-bold text-white">Secure Backup</p>
+                                <p className="text-xs text-zinc-500 leading-relaxed">Your data is encrypted and belongs to you.</p>
+                             </div>
+                          </div>
+                          <div className="flex gap-4 items-start">
+                             <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500 border border-blue-500/20">
+                                <Smartphone size={20} />
+                             </div>
+                             <div>
+                                <p className="text-sm font-bold text-white">Cross Device</p>
+                                <p className="text-xs text-zinc-500 leading-relaxed">Seamlessly switch between phone, tablet, and desktop.</p>
+                             </div>
+                          </div>
+                       </div>
+                     </div>
+                  </div>
+
+                  {/* Right: Auth Form */}
+                  <div className="bg-black/40 p-8 flex flex-col justify-center border-t md:border-t-0 md:border-l border-zinc-800">
+                     <div className="mb-6 text-center">
+                        <h4 className="text-lg font-bold text-white">
+                           {authMode === 'signin' ? 'Welcome Back' : 'Create Account'}
+                        </h4>
+                     </div>
+
+                     <form onSubmit={handleAuth} className="space-y-4">
+                        <div className="space-y-3">
+                           <div className="relative group">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" size={16} />
+                              <input
+                                type="email"
+                                required
+                                placeholder="Email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full bg-zinc-900/50 border border-zinc-700 rounded-xl pl-10 pr-4 py-3 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all text-sm placeholder:text-zinc-600"
+                              />
+                           </div>
+                           <div className="relative group">
+                              <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" size={16} />
+                              <input
+                                type="password"
+                                required
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                minLength={6}
+                                className="w-full bg-zinc-900/50 border border-zinc-700 rounded-xl pl-10 pr-4 py-3 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all text-sm placeholder:text-zinc-600"
+                              />
+                           </div>
+                        </div>
+                        
+                        {authError && (
+                           <div className="p-3 bg-red-950/30 border border-red-500/30 rounded-lg flex items-center gap-2 text-red-400 text-xs animate-in fade-in">
+                              <TriangleAlert size={14} />
+                              <span>{authError}</span>
+                           </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={authLoading || !isSupabaseConfigured()}
+                          className="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] disabled:opacity-50 shadow-lg shadow-emerald-900/20"
+                        >
+                          {authLoading ? <Loader2 className="animate-spin" size={18} /> : (authMode === 'signin' ? 'Sign In' : 'Sign Up')}
+                        </button>
+                     </form>
+
+                     <div className="mt-6 text-center">
+                        <p className="text-xs text-zinc-500 mb-2">
+                           {authMode === 'signin' ? "New to Project 50?" : "Already have an account?"}
+                        </p>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+                            setAuthError(null);
+                          }}
+                          className="text-xs font-bold text-zinc-300 hover:text-white transition-colors"
+                        >
+                          {authMode === 'signin' ? "Create Free Account" : "Log In Here"}
+                        </button>
+                     </div>
+                  </div>
+               </div>
+             )}
+          </div>
+
+          {/* Profile Settings (Visible even if logged out for local usage) */}
+          <div className="space-y-4 border-t border-zinc-800 pt-8">
+            <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Profile Settings</h4>
+            
+            {/* Avatar Section */}
+            <div>
+               <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">Avatar</label>
+               <div className="flex items-center gap-6">
+                  <div className="relative group">
+                     {editAvatar ? (
+                        <img src={editAvatar} alt="Avatar" className="w-20 h-20 rounded-full object-cover border-4 border-zinc-800 shadow-lg" />
+                     ) : (
+                        <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center border-4 border-zinc-800 shadow-inner">
+                           <User size={32} className="text-zinc-600" />
+                        </div>
+                     )}
+                     <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white"
+                        disabled={isCompressingAvatar}
+                     >
+                        {isCompressingAvatar ? <Loader2 className="animate-spin" /> : <Camera size={20} />}
+                     </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                     <button 
+                       onClick={() => fileInputRef.current?.click()}
+                       disabled={isCompressingAvatar}
+                       className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-bold text-white transition-colors border border-zinc-700"
+                     >
+                       Upload New Photo
+                     </button>
+                     {editAvatar && (
+                        <button 
+                          onClick={() => setEditAvatar(undefined)}
+                          className="px-4 py-2 text-zinc-500 hover:text-red-400 text-xs transition-colors text-left"
+                        >
+                          Remove Photo
+                        </button>
+                     )}
+                  </div>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleAvatarSelect} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+               </div>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Display Name</label>
               <input 

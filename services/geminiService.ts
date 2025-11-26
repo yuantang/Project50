@@ -1,10 +1,13 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { UserProgress } from '../types';
+import { getRandomMotivation, getRandomCoaching } from './fallbackService';
 
 // Initialize Gemini
 // ALWAYS use process.env.API_KEY directly in the constructor
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const isOnline = () => navigator.onLine;
 
 const PERSONA_PROMPTS: Record<string, string> = {
   sergeant: "You are an aggressive, ex-military drill sergeant like David Goggins. Be harsh, direct, and demanding. Use tough love. No pity. Focus on suffering and hardness.",
@@ -25,6 +28,8 @@ export const getDailyMotivation = async (
   persona: UserProgress['aiPersona'] = 'stoic',
   customPrompt?: string
 ): Promise<string> => {
+  if (!isOnline()) return getRandomMotivation();
+
   try {
     const model = 'gemini-2.5-flash';
     const personaInstruction = getPersonaInstruction(persona, customPrompt);
@@ -40,14 +45,16 @@ export const getDailyMotivation = async (
       contents: prompt,
     });
 
-    return response.text || "Keep pushing. Silence the noise.";
+    return response.text || getRandomMotivation();
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Discipline equals freedom. Keep going.";
+    return getRandomMotivation();
   }
 };
 
 export const getWeeklyAnalysis = async (progress: UserProgress): Promise<string> => {
+  if (!isOnline()) return "### Offline Mode\n\nCannot generate deep analysis without internet connection. Please review your stats manually in the charts tab.";
+
   try {
     const currentDay = progress.currentDay;
     const startDay = Math.max(1, currentDay - 6);
@@ -89,6 +96,8 @@ export const getWeeklyAnalysis = async (progress: UserProgress): Promise<string>
 };
 
 export const getPatternAnalysis = async (progress: UserProgress): Promise<string> => {
+  if (!isOnline()) return "🔍 Connect to the internet to unlock AI pattern recognition.";
+
   try {
     // Compile simplified history
     const historyData = Object.entries(progress.history).map(([day, data]) => ({
@@ -130,6 +139,8 @@ export const getEmergencyPepTalk = async (
   persona: UserProgress['aiPersona'] = 'sergeant',
   customPrompt?: string
 ): Promise<string> => {
+  if (!isOnline()) return "Breathe. You are stronger than your excuses. Do the work.";
+
   try {
     const personaInstruction = getPersonaInstruction(persona, customPrompt);
     const prompt = `
@@ -151,6 +162,8 @@ export const getEmergencyPepTalk = async (
 };
 
 export const getAiCoaching = async (progress: UserProgress, userMessage: string): Promise<string> => {
+  if (!isOnline()) return getRandomCoaching();
+
   try {
     const personaInstruction = getPersonaInstruction(progress.aiPersona || 'stoic', progress.customPersonaPrompt);
     const prompt = `
@@ -174,6 +187,8 @@ export const getAiCoaching = async (progress: UserProgress, userMessage: string)
 };
 
 export const refineManifesto = async (text: string): Promise<string> => {
+  if (!isOnline()) return text;
+  
   try {
     const prompt = `
       Rewrite the following personal manifesto to be more powerful, stoic, and disciplined. 
@@ -194,6 +209,8 @@ export const refineManifesto = async (text: string): Promise<string> => {
 };
 
 export const getJournalInsight = async (note: string, mood: string): Promise<string> => {
+  if (!isOnline()) return "Reflection is the key to progress.";
+
   try {
     const prompt = `
       Mood: ${mood}. Note: "${note}".
@@ -213,6 +230,8 @@ export const getJournalInsight = async (note: string, mood: string): Promise<str
 };
 
 export const getHabitGuide = async (habitLabel: string, habitDesc: string): Promise<string> => {
+  if (!isOnline()) return "1. Just start.\n2. Do it for 5 minutes.\n3. Don't stop.";
+
   try {
     const prompt = `
       You are an elite discipline coach. The user needs a micro-plan for the habit: "${habitLabel}".
