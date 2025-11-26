@@ -1,8 +1,8 @@
 
 import { UserProgress, DEFAULT_HABITS } from '../types';
 
-const STORAGE_KEY = 'project50_data_v10'; // Bumped version
-const APP_VERSION = '1.2.0';
+const STORAGE_KEY = 'project50_data_v12'; // Bumped version for habitLogs support
+const APP_VERSION = '1.3.1';
 
 const INITIAL_STATE: UserProgress = {
   userName: "",
@@ -54,8 +54,17 @@ export const getProgress = (): UserProgress => {
     if (parsed.preferences === undefined) {
       parsed.preferences = { soundEnabled: true, hapticsEnabled: true };
     }
-    // cachedPattern is optional, so no strict migration needed, but good to know
     
+    // Migrate History to include habitLogs if missing
+    if (parsed.history) {
+      Object.keys(parsed.history).forEach(key => {
+        const k = Number(key);
+        if (!parsed.history[k].habitLogs) {
+          parsed.history[k].habitLogs = {};
+        }
+      });
+    }
+
     return parsed;
   } catch (e) {
     console.error("Failed to load progress", e);
@@ -106,10 +115,13 @@ export const exportData = (): void => {
 
 export const exportCSV = (): void => {
   const progress = getProgress();
-  const headers = ['Date', 'Day', 'Completed Count', 'Mood', 'Notes', 'Frozen', ...progress.customHabits.map(h => h.label)];
+  // CSV Headers: Includes specific columns for each habit's note
+  const headers = ['Date', 'Day', 'Completed Count', 'Mood', 'Notes', 'Frozen', ...progress.customHabits.map(h => h.label), ...progress.customHabits.map(h => `${h.label} Details`)];
   
   const rows = Object.entries(progress.history).map(([dayStr, data]) => {
     const habitStatuses = progress.customHabits.map(h => data.completedHabits.includes(h.id) ? 'YES' : 'NO');
+    const habitNotes = progress.customHabits.map(h => data.habitLogs?.[h.id] ? `"${data.habitLogs[h.id].replace(/"/g, '""')}"` : '');
+    
     return [
       data.date,
       dayStr,
@@ -117,7 +129,8 @@ export const exportCSV = (): void => {
       data.mood || '',
       `"${(data.notes || '').replace(/"/g, '""')}"`, // Escape quotes
       data.frozen ? 'YES' : 'NO',
-      ...habitStatuses
+      ...habitStatuses,
+      ...habitNotes
     ].join(',');
   });
 

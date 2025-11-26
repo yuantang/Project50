@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { UserProgress } from '../types';
 import { Trophy, CircleCheck, Calendar, Quote, Copy, Check, AlignJustify, Layout } from 'lucide-react';
@@ -22,7 +21,7 @@ export const ShareCard: React.FC<ShareCardProps> = ({ progress, onClose }) => {
   const percentage = Math.round((completedCount / habitsCount) * 100);
   const hasPhoto = !!todayData.photo;
 
-  const handleCopyText = () => {
+  const handleCopyText = async () => {
     const lines = [
       `🚀 PROJECT ${progress.totalDays} UPDATE`,
       `📅 Day ${currentDay}/${progress.totalDays}`,
@@ -37,9 +36,15 @@ export const ShareCard: React.FC<ShareCardProps> = ({ progress, onClose }) => {
       `#Project50 #Discipline`
     ].filter(Boolean);
 
-    navigator.clipboard.writeText(lines.join('\n'));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const text = lines.join('\n');
+    
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      prompt("Copy your report:", text);
+    }
   };
 
   return (

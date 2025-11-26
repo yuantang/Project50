@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { MoodSelector } from './MoodSelector';
 import { Mood } from '../types';
-import { Camera, X, Image as ImageIcon, Sparkles, Loader2, Lightbulb } from 'lucide-react';
+import { Camera, X, ImageIcon, Sparkles, Loader2, Lightbulb, CheckCircle2 } from 'lucide-react';
 import { getJournalInsight } from '../services/geminiService';
 
 interface DailyJournalProps {
@@ -30,6 +30,9 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
   const [insight, setInsight] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+
+  // Derived state: Is the journal "complete"?
+  const isCompleted = !!mood && note.trim().length > 0;
 
   // Canvas-based image compression
   const compressImage = (file: File): Promise<string> => {
@@ -102,17 +105,28 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
     <div 
       id="daily-journal"
       className={`
-        bg-surface border rounded-xl overflow-hidden mt-6 transition-all duration-500
+        bg-surface border rounded-xl overflow-hidden mt-6 transition-all duration-500 relative
         ${highlight 
           ? 'border-indigo-500 shadow-[0_0_30px_-5px_rgba(99,102,241,0.3)] ring-1 ring-indigo-500' 
-          : 'border-zinc-800'}
+          : isCompleted 
+            ? 'border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]'
+            : 'border-zinc-800'}
       `}
     >
-      <div className="p-4 bg-zinc-900/50 border-b border-zinc-800 flex justify-between items-center">
-        <h3 className={`font-semibold flex items-center gap-2 transition-colors ${highlight ? 'text-indigo-400' : 'text-white'}`}>
+      {isCompleted && (
+        <div className="absolute top-0 right-0 p-4 z-20 pointer-events-none animate-in fade-in zoom-in">
+           <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
+             <CheckCircle2 size={12} />
+             Logged
+           </div>
+        </div>
+      )}
+
+      <div className={`p-4 border-b flex justify-between items-center transition-colors ${isCompleted ? 'bg-emerald-950/10 border-emerald-500/20' : 'bg-zinc-900/50 border-zinc-800'}`}>
+        <h3 className={`font-semibold flex items-center gap-2 transition-colors ${highlight ? 'text-indigo-400' : isCompleted ? 'text-emerald-400' : 'text-white'}`}>
           Daily Journal
         </h3>
-        <span className="text-xs text-zinc-500 uppercase tracking-wider">Evidence & Reflection</span>
+        <span className="text-xs text-zinc-500 uppercase tracking-wider pr-20 md:pr-0">Evidence & Reflection</span>
       </div>
       
       <div className="p-4 space-y-6">
@@ -202,9 +216,10 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
               disabled={disabled}
               placeholder={disabled ? "No reflection recorded." : "What went well? What was difficult? Write your thoughts..."}
               className={`
-                w-full bg-black/20 border border-zinc-700/50 rounded-lg p-4 text-sm text-zinc-300 
+                w-full bg-black/20 border rounded-lg p-4 text-sm text-zinc-300 
                 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 
                 transition-all resize-none min-h-[120px]
+                ${isCompleted ? 'border-emerald-900/30' : 'border-zinc-700/50'}
                 ${disabled ? 'cursor-default opacity-80' : ''}
               `}
             />

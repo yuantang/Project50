@@ -6,18 +6,30 @@ import { UserProgress } from '../types';
 // ALWAYS use process.env.API_KEY directly in the constructor
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const PERSONA_PROMPTS = {
+const PERSONA_PROMPTS: Record<string, string> = {
   sergeant: "You are an aggressive, ex-military drill sergeant like David Goggins. Be harsh, direct, and demanding. Use tough love. No pity. Focus on suffering and hardness.",
   stoic: "You are a stoic philosopher like Marcus Aurelius or Seneca. Be calm, rational, and focus on duty, virtue, and controlling the mind. Use ancient wisdom.",
   empathetic: "You are a kind, supportive, and warm life coach. Be encouraging, understanding, and focus on self-care and gentle progress."
 };
 
-export const getDailyMotivation = async (day: number, totalDays: number, persona: UserProgress['aiPersona'] = 'stoic'): Promise<string> => {
+const getPersonaInstruction = (persona: UserProgress['aiPersona'], customPrompt?: string): string => {
+  if (persona === 'custom' && customPrompt) {
+    return `You are a personalized coach. Your persona instructions are: "${customPrompt}". Be consistent with this role.`;
+  }
+  return PERSONA_PROMPTS[persona] || PERSONA_PROMPTS['stoic'];
+};
+
+export const getDailyMotivation = async (
+  day: number, 
+  totalDays: number, 
+  persona: UserProgress['aiPersona'] = 'stoic',
+  customPrompt?: string
+): Promise<string> => {
   try {
     const model = 'gemini-2.5-flash';
-    const personaPrompt = PERSONA_PROMPTS[persona];
+    const personaInstruction = getPersonaInstruction(persona, customPrompt);
     const prompt = `
-      ${personaPrompt}
+      ${personaInstruction}
       The user is on Day ${day} of ${totalDays}.
       Give them a short, punchy motivational quote or advice for this stage.
       Keep it under 2 sentences. No emojis.
@@ -114,11 +126,14 @@ export const getPatternAnalysis = async (progress: UserProgress): Promise<string
   }
 };
 
-export const getEmergencyPepTalk = async (persona: UserProgress['aiPersona'] = 'sergeant'): Promise<string> => {
+export const getEmergencyPepTalk = async (
+  persona: UserProgress['aiPersona'] = 'sergeant',
+  customPrompt?: string
+): Promise<string> => {
   try {
-    const personaPrompt = PERSONA_PROMPTS[persona];
+    const personaInstruction = getPersonaInstruction(persona, customPrompt);
     const prompt = `
-      ${personaPrompt}
+      ${personaInstruction}
       The user is pressing the "SOS" panic button. They are about to break their streak or quit the challenge.
       Give them a INTENSE, 50-word reality check. 
       Tell them to breathe and get back to work.
@@ -137,9 +152,9 @@ export const getEmergencyPepTalk = async (persona: UserProgress['aiPersona'] = '
 
 export const getAiCoaching = async (progress: UserProgress, userMessage: string): Promise<string> => {
   try {
-    const personaPrompt = PERSONA_PROMPTS[progress.aiPersona || 'stoic'];
+    const personaInstruction = getPersonaInstruction(progress.aiPersona || 'stoic', progress.customPersonaPrompt);
     const prompt = `
-      ${personaPrompt}
+      ${personaInstruction}
       You are an elite performance coach for Project 50.
       User Status: Day ${progress.currentDay}/${progress.totalDays}.
       User Message: "${userMessage}"

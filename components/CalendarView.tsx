@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Activity, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Activity, CircleCheck } from 'lucide-react';
 import { UserProgress, Mood } from '../types';
 
 interface CalendarViewProps {
@@ -99,7 +99,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ progress, onDayClick
                     onClick={() => setViewMode('progress')}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'progress' ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-white/10' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
-                    <CheckCircle2 size={12} />
+                    <CircleCheck size={12} />
                     Progress
                 </button>
                 <button 

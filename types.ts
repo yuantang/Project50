@@ -11,6 +11,7 @@ export type Mood = 'great' | 'good' | 'neutral' | 'bad' | 'terrible';
 export interface DayData {
   date: string; // ISO date string
   completedHabits: string[]; // Array of habit IDs
+  habitLogs?: Record<string, string>; // Key: habitId, Value: note (e.g., "Read 20 pages")
   notes: string;
   mood?: Mood;
   photo?: string; // Base64 encoded image string
@@ -44,7 +45,8 @@ export interface UserProgress {
   totalFocusMinutes: number; // Track deep work time
   habitFocusDistribution?: Record<string, number>; // Track minutes per habit ID
   streakFreezes: number; // Inventory of freeze items
-  aiPersona: 'sergeant' | 'stoic' | 'empathetic'; // AI personality
+  aiPersona: 'sergeant' | 'stoic' | 'empathetic' | 'custom'; // AI personality
+  customPersonaPrompt?: string; // User defined system instruction for AI
   cachedPattern?: { // Persist AI analysis
     text: string;
     date: string;
@@ -52,6 +54,11 @@ export interface UserProgress {
   preferences?: {
     soundEnabled: boolean;
     hapticsEnabled: boolean;
+    privacyBlurEnabled?: boolean; // Blur app when window loses focus
+    notifications?: {
+      enabled: boolean;
+      time: string; // "09:00"
+    };
   };
 }
 

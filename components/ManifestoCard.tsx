@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Quote, Edit2, Check, Sparkles, Loader2 } from 'lucide-react';
+import { Quote, Pencil, Check, Sparkles, Loader2 } from 'lucide-react';
 import { refineManifesto } from '../services/geminiService';
 
 interface ManifestoCardProps {
@@ -66,7 +66,7 @@ export const ManifestoCard: React.FC<ManifestoCardProps> = ({ text, onSave }) =>
               onClick={() => isEditing ? handleSave() : setIsEditing(true)}
               className="text-zinc-500 hover:text-white transition-colors"
             >
-              {isEditing ? <Check size={16} className="text-emerald-500" /> : <Edit2 size={14} />}
+              {isEditing ? <Check size={16} className="text-emerald-500" /> : <Pencil size={14} />}
             </button>
           </div>
         </div>
