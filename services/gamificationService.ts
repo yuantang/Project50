@@ -75,25 +75,56 @@ export const checkBadges = (progress: UserProgress): Badge[] => {
   const newBadges: Badge[] = [];
   const currentBadges = progress.badges || [];
   const hasBadge = (id: string) => currentBadges.some(b => b.id === id);
+  const totalHabits = progress.customHabits.length;
 
-  // Check First Step
-  if (progress.currentDay > 1 && !hasBadge('first_step')) {
+  const isDayComplete = (day: number) => {
+    const data = progress.history[day];
+    if (!data) return false;
+    return data.frozen || data.completedHabits.length === totalHabits;
+  };
+
+  // Check First Step (Check if Day 1 data exists and is complete, regardless of currentDay pointer)
+  if (isDayComplete(1) && !hasBadge('first_step')) {
     newBadges.push({ ...AVAILABLE_BADGES.find(b => b.id === 'first_step')!, unlockedAt: new Date().toISOString() });
   }
 
-  // Check Week Warrior
-  if (progress.currentDay > 7 && !hasBadge('week_warrior')) {
+  // Check Week Warrior (Check days 1-7)
+  let firstWeekComplete = true;
+  for (let i = 1; i <= 7; i++) {
+    if (!isDayComplete(i)) {
+      firstWeekComplete = false;
+      break;
+    }
+  }
+  if (firstWeekComplete && !hasBadge('week_warrior')) {
     newBadges.push({ ...AVAILABLE_BADGES.find(b => b.id === 'week_warrior')!, unlockedAt: new Date().toISOString() });
   }
 
   // Check Halfway
-  if (progress.currentDay > (progress.totalDays / 2) && !hasBadge('halfway_hero')) {
+  const halfwayPoint = Math.floor(progress.totalDays / 2);
+  let halfwayComplete = true;
+  for (let i = 1; i <= halfwayPoint; i++) {
+      if (!isDayComplete(i)) { 
+          // Relaxed check: just check if they reached the day number? 
+          // Usually badges imply *completing* the days.
+          // For now, let's keep it based on reaching the day to be generous, or check completion count.
+          // Let's stick to the previous logic: if currentDay > halfway
+      }
+  }
+  // Reverting Halfway to "Reached Day X" logic, but ensuring previous days aren't empty helps.
+  if (progress.currentDay > halfwayPoint && !hasBadge('halfway_hero')) {
     newBadges.push({ ...AVAILABLE_BADGES.find(b => b.id === 'halfway_hero')!, unlockedAt: new Date().toISOString() });
   }
 
-  // Check Strict Mode (Logic: 10 days of progress while strict mode is ON)
-  if (progress.strictMode && progress.currentDay > 10 && !hasBadge('strict_master')) {
-     newBadges.push({ ...AVAILABLE_BADGES.find(b => b.id === 'strict_master')!, unlockedAt: new Date().toISOString() });
+  // Check Strict Mode (10 days complete while strict)
+  if (progress.strictMode) {
+      let strictStreak = 0;
+      for(let i = 1; i <= progress.currentDay; i++) {
+          if (isDayComplete(i)) strictStreak++;
+      }
+      if (strictStreak >= 10 && !hasBadge('strict_master')) {
+          newBadges.push({ ...AVAILABLE_BADGES.find(b => b.id === 'strict_master')!, unlockedAt: new Date().toISOString() });
+      }
   }
 
   return newBadges;

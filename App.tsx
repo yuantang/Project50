@@ -97,17 +97,38 @@ export default function App() {
     return habitsDone && journalDone;
   })();
 
-  // Initialize or Load Data
+  // Initialize or Load Data & Auto-update Day
   useEffect(() => {
-    const data = getProgress();
+    let data = getProgress();
+    
     if (!data.startDate) {
       const initial = startChallenge();
       setProgress(initial);
       setViewingDay(initial.currentDay);
+      data = initial; // Sync local var
     } else {
+      // Auto-Update Current Day based on real time
+      const start = new Date(data.startDate);
+      const now = new Date();
+      start.setHours(0,0,0,0);
+      now.setHours(0,0,0,0);
+      
+      const diffTime = now.getTime() - start.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      // Day 1 is diffDays = 0. So current should be diffDays + 1.
+      // Clamp between 1 and totalDays.
+      const calculatedDay = Math.min(data.totalDays, Math.max(1, diffDays + 1));
+
+      if (calculatedDay !== data.currentDay) {
+        console.log(`Auto-advancing day from ${data.currentDay} to ${calculatedDay}`);
+        data.currentDay = calculatedDay;
+        saveProgress(data);
+      }
+
       setProgress(data);
       setViewingDay(data.currentDay);
     }
+
     // Initialize preferences
     if (data.preferences) {
       soundService.updateSettings(data.preferences.soundEnabled, data.preferences.hapticsEnabled);
@@ -143,8 +164,17 @@ export default function App() {
          if (session) {
            syncFromCloud().then((cloudData) => {
              if (cloudData) {
-               setProgress(cloudData);
-               setViewingDay(cloudData.currentDay);
+               // Re-apply date logic to cloud data just in case
+               const start = new Date(cloudData.startDate || new Date().toISOString());
+               const now = new Date();
+               start.setHours(0,0,0,0);
+               now.setHours(0,0,0,0);
+               const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+               const calculatedDay = Math.min(cloudData.totalDays, Math.max(1, diffDays + 1));
+               
+               const finalData = { ...cloudData, currentDay: calculatedDay };
+               setProgress(finalData);
+               setViewingDay(calculatedDay);
              }
            });
          }
@@ -174,14 +204,36 @@ export default function App() {
     }
   }, []);
 
-  // Privacy Blur Logic
+  // Privacy Blur Logic & Day Rollover Check
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (progress.preferences?.privacyBlurEnabled) {
-        if (document.hidden) {
+      if (document.hidden) {
+        if (progress.preferences?.privacyBlurEnabled) {
           setIsBlurred(true);
-        } else {
+        }
+      } else {
+        // App became visible
+        if (progress.preferences?.privacyBlurEnabled) {
           setTimeout(() => setIsBlurred(false), 100);
+        }
+        
+        // Check Day Rollover
+        const data = getProgress();
+        if (data.startDate) {
+           const start = new Date(data.startDate);
+           const now = new Date();
+           start.setHours(0,0,0,0);
+           now.setHours(0,0,0,0);
+           const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+           const calculatedDay = Math.min(data.totalDays, Math.max(1, diffDays + 1));
+           
+           if (calculatedDay !== data.currentDay) {
+             console.log("Resumed app: advancing day");
+             const updated = { ...data, currentDay: calculatedDay };
+             setProgress(updated);
+             setViewingDay(calculatedDay);
+             saveProgress(updated);
+           }
         }
       }
     };
@@ -202,7 +254,7 @@ export default function App() {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [progress.preferences?.privacyBlurEnabled]);
+  }, [progress.preferences?.privacyBlurEnabled, progress.totalDays, progress.currentDay]);
 
   // Notification Scheduling Logic
   useEffect(() => {
@@ -529,13 +581,6 @@ export default function App() {
     saveProgress(newProgress);
   };
 
-  const handleSignOut = async () => {
-     if (confirm("Are you sure you want to sign out?")) {
-        await supabase.auth.signOut();
-        setUserSession(null);
-     }
-  };
-
   const isHistoryMode = viewingDay < progress.currentDay;
   const isFutureMode = viewingDay > progress.currentDay;
   const isFrozenDay = !!progress.history[viewingDay]?.frozen;
@@ -832,7 +877,6 @@ export default function App() {
                onUpdate={setProgress} 
                onReset={() => { resetChallenge(); window.location.reload(); }}
                userSession={userSession}
-               onLogoutRequest={handleSignOut}
              />
           )}
 
