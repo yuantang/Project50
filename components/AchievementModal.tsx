@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import * as Icons from 'lucide-react';
+import { Footprints, Sword, Mountain, ShieldAlert, Crown, Circle, Award, Sparkles, Star } from 'lucide-react';
 import { Badge } from '../types';
 import { soundService } from '../services/soundService';
 
@@ -19,6 +19,10 @@ interface AchievementModalProps {
   event: AchievementEvent;
   onClose: () => void;
 }
+
+const BADGE_ICON_MAP: Record<string, React.ElementType> = {
+  Footprints, Sword, Mountain, ShieldAlert, Crown, Circle
+};
 
 export const AchievementModal: React.FC<AchievementModalProps> = ({ event, onClose }) => {
   
@@ -39,11 +43,14 @@ export const AchievementModal: React.FC<AchievementModalProps> = ({ event, onClo
   }, [event.type]);
 
   const IconComp = event.type === 'badge' && event.badge 
-    ? (Icons as any)[event.badge.icon] || Icons.Award
-    : Icons.Crown;
+    ? BADGE_ICON_MAP[event.badge.icon] || Award
+    : Crown;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-500">
+      {/* Global Noise Texture */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.035] bg-noise mix-blend-overlay" />
+
       {/* Ambient Glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-[100px] animate-pulse" />
@@ -59,15 +66,15 @@ export const AchievementModal: React.FC<AchievementModalProps> = ({ event, onClo
           </div>
           {/* Decorative elements */}
           <div className="absolute -top-4 -right-4 text-yellow-400 animate-bounce delay-100">
-             <Icons.Sparkles size={24} fill="currentColor" />
+             <Sparkles size={24} fill="currentColor" />
           </div>
           <div className="absolute -bottom-2 -left-4 text-yellow-400 animate-bounce delay-300">
-             <Icons.Star size={20} fill="currentColor" />
+             <Star size={20} fill="currentColor" />
           </div>
         </div>
 
         {/* Text Content */}
-        <div className="space-y-2 mb-8">
+        <div className="space-y-2 mb-8 relative z-10">
           <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-widest">
             {event.type === 'level_up' ? 'Level Unlocked' : 'Badge Earned'}
           </h3>
@@ -82,7 +89,7 @@ export const AchievementModal: React.FC<AchievementModalProps> = ({ event, onClo
         {/* Action Button */}
         <button
           onClick={onClose}
-          className="w-full py-4 bg-white text-black font-bold rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95 transition-all"
+          className="w-full py-4 bg-white text-black font-bold rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95 transition-all relative z-10"
         >
           Claim Reward
         </button>

@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { MoodSelector } from './MoodSelector';
 import { Mood } from '../types';
@@ -113,6 +112,9 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
             : 'border-zinc-800'}
       `}
     >
+      {/* Global Noise Texture */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03] bg-noise mix-blend-overlay" />
+
       {isCompleted && (
         <div className="absolute top-0 right-0 p-4 z-20 pointer-events-none animate-in fade-in zoom-in">
            <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
@@ -122,14 +124,14 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
         </div>
       )}
 
-      <div className={`p-4 border-b flex justify-between items-center transition-colors ${isCompleted ? 'bg-emerald-950/10 border-emerald-500/20' : 'bg-zinc-900/50 border-zinc-800'}`}>
+      <div className={`p-4 border-b flex justify-between items-center transition-colors relative z-10 ${isCompleted ? 'bg-emerald-950/10 border-emerald-500/20' : 'bg-zinc-900/50 border-zinc-800'}`}>
         <h3 className={`font-semibold flex items-center gap-2 transition-colors ${highlight ? 'text-indigo-400' : isCompleted ? 'text-emerald-400' : 'text-white'}`}>
           Daily Journal
         </h3>
         <span className="text-xs text-zinc-500 uppercase tracking-wider pr-20 md:pr-0">Evidence & Reflection</span>
       </div>
       
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-6 relative z-10">
         {/* Photo Section */}
         <div>
           <label className="block text-sm text-zinc-400 mb-3">Photo Evidence</label>

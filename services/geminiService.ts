@@ -1,13 +1,24 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { UserProgress } from '../types';
 import { getRandomMotivation, getRandomCoaching } from './fallbackService';
 
 // Initialize Gemini
-// ALWAYS use process.env.API_KEY directly in the constructor
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const isOnline = () => navigator.onLine;
+
+// --- RETRY UTILITY ---
+// Fixes transient network/XHR errors by retrying up to 2 times with varying delays
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    console.warn(`Gemini API request failed, retrying... (${retries} attempts left)`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return withRetry(fn, retries - 1, delay * 2); // Exponential backoff
+  }
+}
 
 const PERSONA_PROMPTS: Record<string, string> = {
   sergeant: "You are an aggressive, ex-military drill sergeant like David Goggins. Be harsh, direct, and demanding. Use tough love. No pity. Focus on suffering and hardness.",
@@ -40,14 +51,14 @@ export const getDailyMotivation = async (
       Keep it under 2 sentences. No emojis.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model,
       contents: prompt,
-    });
+    }));
 
     return response.text || getRandomMotivation();
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.warn("Gemini API unavailable (Motivation), using fallback.");
     return getRandomMotivation();
   }
 };
@@ -83,15 +94,15 @@ export const getWeeklyAnalysis = async (progress: UserProgress): Promise<string>
       Keep it professional, analytical, and concise.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
-    });
+    }));
 
     return response.text || "Analysis unavailable. Keep tracking to generate insights.";
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "Could not generate weekly analysis at this time.";
+    console.warn("Gemini API unavailable (Analysis).");
+    return "Could not generate weekly analysis at this time due to network issues.";
   }
 };
 
@@ -103,31 +114,33 @@ export const getPatternAnalysis = async (progress: UserProgress): Promise<string
     const historyData = Object.entries(progress.history).map(([day, data]) => ({
       day,
       mood: data.mood,
-      completedCount: data.completedHabits.length,
+      completedHabits: data.completedHabits,
       frozen: data.frozen,
-      habitsMissed: progress.customHabits.filter(h => !data.completedHabits.includes(h.id)).map(h => h.label)
-    })).slice(-14); // Last 14 days
+    })).slice(-21); // Last 21 days for better sampling
+
+    const habitNames = progress.customHabits.map(h => ({ id: h.id, label: h.label }));
 
     if (historyData.length < 3) return "Not enough data yet. Track for 3+ days to unlock Pattern Analysis.";
 
     const prompt = `
-      Analyze this user data (last 14 days) to find HIDDEN CORRELATIONS.
+      Act as a Lead Data Scientist analyzing user habit data.
       
-      Data: ${JSON.stringify(historyData)}
+      Habit Definitions: ${JSON.stringify(habitNames)}
+      User Data (Last 21 Days): ${JSON.stringify(historyData)}
       
-      Find 2 specific patterns. 
-      Examples:
-      - Does Mood drop when they miss a specific habit?
-      - Is there a "Domino Habit" that predicts a perfect day?
+      Find the "Domino Habit" (the one that, when done, leads to the best days) and the "Kryptonite" (the one that causes failure).
       
-      Return ONLY 2 short bullet points. Start each with "🔍".
-      Be extremely concise.
+      Return EXACTLY 2 bullet points. Start with "🔍".
+      1. Identify the strongest correlation (e.g., "When you read, your mood is 80% likely to be Great").
+      2. Identify the biggest risk factor or opportunity.
+      
+      Keep it short, punchy, and insight-driven.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
-    });
+    }));
 
     return response.text || "🔍 Consistent sleep correlates with higher completion rates.";
   } catch (error) {
@@ -150,10 +163,10 @@ export const getEmergencyPepTalk = async (
       Tell them to breathe and get back to work.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
-    });
+    }));
 
     return response.text || "Pain is temporary. Quitting lasts forever. Get back to work.";
   } catch (error) {
@@ -174,14 +187,14 @@ export const getAiCoaching = async (progress: UserProgress, userMessage: string)
       Provide advice. Be concise (max 3 sentences).
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
-    });
+    }));
 
     return response.text || "Focus on the process. The results will follow.";
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.warn("Gemini API unavailable (Coach).");
     return "Stay focused. Keep grinding.";
   }
 };
@@ -196,14 +209,13 @@ export const refineManifesto = async (text: string): Promise<string> => {
       Input text: "${text}"
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
-    });
+    }));
 
     return response.text?.replace(/^"|"$/g, '') || text;
   } catch (error) {
-    console.error("Gemini Manifesto Error:", error);
     return text;
   }
 };
@@ -217,14 +229,13 @@ export const getJournalInsight = async (note: string, mood: string): Promise<str
       Provide a SINGLE, profound insight or a psychological reflection question. Max 2 sentences.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
-    });
+    }));
 
     return response.text || "Reflection is the key to progress.";
   } catch (error) {
-    console.error("Gemini Journal Error:", error);
     return "Keep documenting your journey.";
   }
 };
@@ -243,10 +254,10 @@ export const getHabitGuide = async (habitLabel: string, habitDesc: string): Prom
       Format: Just the steps, numbered.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
-    });
+    }));
 
     return response.text || "1. Start immediately.\n2. Focus for 10 minutes.\n3. Don't stop until done.";
   } catch (error) {

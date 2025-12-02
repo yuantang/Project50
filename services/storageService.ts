@@ -2,8 +2,8 @@
 import { UserProgress, DEFAULT_HABITS } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
-const STORAGE_KEY = 'project50_data_v12'; // Bumped version for habitLogs support
-const APP_VERSION = '1.3.2';
+const STORAGE_KEY = 'project50_data_v12'; 
+const APP_VERSION = '1.5.0'; // Final Cyber-Stoic Release
 
 const INITIAL_STATE: UserProgress = {
   userName: "",
@@ -60,7 +60,6 @@ export const getProgress = (): UserProgress => {
     if (parsed.preferences === undefined) {
       parsed.preferences = { soundEnabled: true, hapticsEnabled: true, privacyBlurEnabled: false };
     }
-    // Avatar migration check (implicit: if undefined, it stays undefined)
     
     // Migrate History to include habitLogs if missing
     if (parsed.history) {
@@ -121,7 +120,6 @@ const syncToCloud = async (progress: UserProgress) => {
     
   } catch (e) {
     console.error("Cloud sync failed:", e);
-    // Silent fail is okay for offline-first, logic handles retry on next save/load
   }
 };
 

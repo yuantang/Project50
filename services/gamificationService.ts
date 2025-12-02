@@ -1,4 +1,3 @@
-
 import { UserProgress, Badge } from '../types';
 
 export const AVAILABLE_BADGES: Badge[] = [
@@ -27,7 +26,7 @@ export const AVAILABLE_BADGES: Badge[] = [
     id: 'strict_master',
     label: 'Iron Will',
     description: 'Completed 10 days in Strict Mode.',
-    icon: 'ShieldAlert', // Changed from Shield to valid Lucide icon
+    icon: 'ShieldAlert',
     color: 'text-red-500'
   },
   {
@@ -47,6 +46,14 @@ export const SHOP_ITEMS = [
     cost: 500,
     icon: 'Snowflake',
     color: 'text-cyan-400'
+  },
+  {
+    id: 'streak_repair',
+    label: 'Time Warp',
+    description: 'Repair the most recent broken day in your streak. A powerful redemption.',
+    cost: 1000,
+    icon: 'RotateCcw',
+    color: 'text-orange-400'
   }
 ];
 
@@ -61,13 +68,32 @@ export const buyItem = (progress: UserProgress, itemId: string): UserProgress | 
 
   if (itemId === 'streak_freeze') {
     newProgress.streakFreezes = (newProgress.streakFreezes || 0) + 1;
+  } else if (itemId === 'streak_repair') {
+    let dayToRepair = -1;
+    for (let i = progress.currentDay - 1; i >= 1; i--) {
+       const dayData = progress.history[i];
+       if (!dayData || (dayData.completedHabits.length < progress.customHabits.length && !dayData.frozen)) {
+          dayToRepair = i;
+          break;
+       }
+    }
+
+    if (dayToRepair !== -1) {
+       const oldData = newProgress.history[dayToRepair] || { completedHabits: [], date: new Date().toISOString(), notes: "" };
+       newProgress.history[dayToRepair] = {
+         ...oldData,
+         frozen: true,
+         freezeReason: 'Time Warp Redemption'
+       };
+    } else {
+       return null; 
+    }
   }
 
   return newProgress;
 };
 
 export const calculateLevel = (xp: number): number => {
-  // Simple formula: Level = sqrt(XP / 100)
   return Math.floor(Math.sqrt(xp / 100)) + 1;
 };
 
@@ -83,12 +109,12 @@ export const checkBadges = (progress: UserProgress): Badge[] => {
     return data.frozen || data.completedHabits.length === totalHabits;
   };
 
-  // Check First Step (Check if Day 1 data exists and is complete, regardless of currentDay pointer)
+  // Check First Step
   if (isDayComplete(1) && !hasBadge('first_step')) {
     newBadges.push({ ...AVAILABLE_BADGES.find(b => b.id === 'first_step')!, unlockedAt: new Date().toISOString() });
   }
 
-  // Check Week Warrior (Check days 1-7)
+  // Check Week Warrior
   let firstWeekComplete = true;
   for (let i = 1; i <= 7; i++) {
     if (!isDayComplete(i)) {
@@ -102,21 +128,11 @@ export const checkBadges = (progress: UserProgress): Badge[] => {
 
   // Check Halfway
   const halfwayPoint = Math.floor(progress.totalDays / 2);
-  let halfwayComplete = true;
-  for (let i = 1; i <= halfwayPoint; i++) {
-      if (!isDayComplete(i)) { 
-          // Relaxed check: just check if they reached the day number? 
-          // Usually badges imply *completing* the days.
-          // For now, let's keep it based on reaching the day to be generous, or check completion count.
-          // Let's stick to the previous logic: if currentDay > halfway
-      }
-  }
-  // Reverting Halfway to "Reached Day X" logic, but ensuring previous days aren't empty helps.
   if (progress.currentDay > halfwayPoint && !hasBadge('halfway_hero')) {
     newBadges.push({ ...AVAILABLE_BADGES.find(b => b.id === 'halfway_hero')!, unlockedAt: new Date().toISOString() });
   }
 
-  // Check Strict Mode (10 days complete while strict)
+  // Check Strict Mode
   if (progress.strictMode) {
       let strictStreak = 0;
       for(let i = 1; i <= progress.currentDay; i++) {
@@ -127,7 +143,8 @@ export const checkBadges = (progress: UserProgress): Badge[] => {
       }
   }
 
-  return newBadges;
+  // CRITICAL FIX: Return combined list to preserve history
+  return [...currentBadges, ...newBadges];
 };
 
 export const calculateDailyXP = (completedHabitsCount: number, totalHabits: number): number => {

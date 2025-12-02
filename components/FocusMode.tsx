@@ -1,6 +1,5 @@
-
-import React, { useEffect } from 'react';
-import { Pause, Play, Minimize2, X, Waves, Wind, CloudRain } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Pause, Play, Minimize2, X, Waves, Wind, CloudRain, Headphones } from 'lucide-react';
 import { Habit } from '../types';
 import { soundService, NoiseType } from '../services/soundService';
 
@@ -25,8 +24,8 @@ export const FocusMode: React.FC<FocusModeProps> = ({
   onStop,
   formatTime
 }) => {
-  const [noiseType, setNoiseType] = React.useState<NoiseType>('brown');
-  const [noiseEnabled, setNoiseEnabled] = React.useState(false);
+  const [noiseType, setNoiseType] = useState<NoiseType>('brown');
+  const [noiseEnabled, setNoiseEnabled] = useState(false);
 
   const progress = initialTime > 0 ? ((initialTime - timeLeft) / initialTime) * 100 : 0;
 
@@ -42,13 +41,21 @@ export const FocusMode: React.FC<FocusModeProps> = ({
     }
   };
 
-  // Cleanup noise on unmount handled by parent or service state
-  useEffect(() => {}, []);
+  // Ensure cleanup if component unmounts while noise is playing
+  useEffect(() => {
+    return () => {
+      // We don't stop noise here because we might just be minimizing, 
+      // but the parent FloatingTimer handles the main state.
+    };
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
+    <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center animate-in fade-in duration-500">
+      {/* Global Noise Texture */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05] bg-noise mix-blend-overlay" />
+      
       {/* Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/20 to-black pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/20 to-black pointer-events-none z-0" />
       
       {/* Top Controls */}
       <div className="absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-start z-20">
@@ -82,7 +89,10 @@ export const FocusMode: React.FC<FocusModeProps> = ({
       {/* Main Timer */}
       <div className="relative z-10 flex flex-col items-center w-full px-4">
          {/* Responsive Text Size */}
-         <div className="text-[22vw] md:text-[15vw] font-black text-zinc-100 tabular-nums leading-none tracking-tighter select-none">
+         <div 
+            onClick={onToggle}
+            className="text-[22vw] md:text-[15vw] font-black text-zinc-100 tabular-nums leading-none tracking-tighter cursor-pointer select-none hover:scale-[1.01] active:scale-[0.99] transition-transform drop-shadow-2xl"
+         >
             {formatTime(timeLeft)}
          </div>
          
@@ -122,7 +132,7 @@ export const FocusMode: React.FC<FocusModeProps> = ({
                 className={`
                     flex flex-col items-center gap-2 p-3 md:p-4 rounded-2xl min-w-[80px] md:min-w-[100px] transition-all border
                     ${noiseEnabled && noiseType === noise.id 
-                        ? 'bg-zinc-800 border-zinc-600 text-white' 
+                        ? 'bg-zinc-800 border-zinc-600 text-white shadow-lg' 
                         : 'bg-transparent border-transparent text-zinc-600 hover:text-zinc-400'}
                 `}
              >

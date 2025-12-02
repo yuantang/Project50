@@ -1,8 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Trophy, 
-  Settings, 
   ChartBar, 
   TriangleAlert,
   Calendar as CalendarIcon,
@@ -12,14 +10,13 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
-  Bot,
   MessageSquare,
   Zap,
   Snowflake,
   WifiOff,
-  Cloud,
-  User,
-  LogOut
+  Settings,
+  Play,
+  Image as ImageIcon
 } from 'lucide-react';
 import { UserProgress, Habit, Mood } from './types';
 import { getProgress, saveProgress, startChallenge, resetChallenge, syncFromCloud } from './services/storageService';
@@ -40,6 +37,8 @@ import { ShortcutsModal } from './components/ShortcutsModal';
 import { SettingsView } from './components/SettingsView';
 import { HabitGuideModal } from './components/HabitGuideModal';
 import { AICoach } from './components/AICoach';
+import { FocusSession } from './components/FocusSession';
+import { DaySnapshotModal } from './components/DaySnapshotModal';
 
 // Global declaration for canvas-confetti
 declare var confetti: any;
@@ -54,8 +53,11 @@ export default function App() {
   const [showShareCard, setShowShareCard] = useState(false);
   const [zenMode, setZenMode] = useState(false);
   
-  // AI Coach Modal State (New FAB)
+  // AI Coach Modal State
   const [showAICoach, setShowAICoach] = useState(false);
+  
+  // Focus Session State
+  const [showFocusSession, setShowFocusSession] = useState(false);
   
   // Privacy Blur State
   const [isBlurred, setIsBlurred] = useState(false);
@@ -80,6 +82,9 @@ export default function App() {
   
   // Shortcuts
   const [showShortcuts, setShowShortcuts] = useState(false);
+  
+  // Snapshot Modal
+  const [showSnapshot, setShowSnapshot] = useState(false);
 
   // Journal Highlight State
   const [highlightJournal, setHighlightJournal] = useState(false);
@@ -88,7 +93,7 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [userSession, setUserSession] = useState<any>(null);
 
-  // Derived: Is "Perfect Day"? (All habits done + Journal filled + Mood selected)
+  // Derived: Is "Perfect Day"?
   const isPerfectDay = (() => {
     const dayData = progress.history[viewingDay];
     if (!dayData) return false;
@@ -97,7 +102,14 @@ export default function App() {
     return habitsDone && journalDone;
   })();
 
-  // Initialize or Load Data & Auto-update Day
+  // Calculate Completion Ratio for Dynamic Background
+  const completionRatio = (() => {
+    const dayData = progress.history[viewingDay];
+    if (!dayData) return 0;
+    return dayData.completedHabits.length / progress.customHabits.length;
+  })();
+
+  // Initialize Data, Preferences & Auth
   useEffect(() => {
     let data = getProgress();
     
@@ -105,9 +117,9 @@ export default function App() {
       const initial = startChallenge();
       setProgress(initial);
       setViewingDay(initial.currentDay);
-      data = initial; // Sync local var
+      data = initial;
     } else {
-      // Auto-Update Current Day based on real time
+      // Auto-Update Current Day
       const start = new Date(data.startDate);
       const now = new Date();
       start.setHours(0,0,0,0);
@@ -115,12 +127,9 @@ export default function App() {
       
       const diffTime = now.getTime() - start.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      // Day 1 is diffDays = 0. So current should be diffDays + 1.
-      // Clamp between 1 and totalDays.
       const calculatedDay = Math.min(data.totalDays, Math.max(1, diffDays + 1));
 
       if (calculatedDay !== data.currentDay) {
-        console.log(`Auto-advancing day from ${data.currentDay} to ${calculatedDay}`);
         data.currentDay = calculatedDay;
         saveProgress(data);
       }
@@ -132,29 +141,22 @@ export default function App() {
     // Initialize preferences
     if (data.preferences) {
       soundService.updateSettings(data.preferences.soundEnabled, data.preferences.hapticsEnabled);
-    } else {
-      const defaults = { soundEnabled: true, hapticsEnabled: true, notifications: { enabled: false, time: "09:00" }, privacyBlurEnabled: false };
-      const newProg = { ...data, preferences: defaults };
-      setProgress(newProg);
-      saveProgress(newProg);
     }
 
-    // Check for Shared Config URL Params
+    // Shared Config URL Params
     const params = new URLSearchParams(window.location.search);
     const sharedConfig = params.get('config');
     if (sharedConfig) {
        try {
           const decoded = JSON.parse(atob(sharedConfig));
-          if (decoded.days && decoded.habits && window.confirm(`Import Shared Challenge Protocol?\n\nDuration: ${decoded.days} Days\nHabits: ${decoded.habits.length}\nMode: ${decoded.mode || 'Standard'}\n\n⚠️ This will overwrite your current settings.`)) {
+          if (decoded.days && decoded.habits && window.confirm(`Import Shared Challenge Protocol?`)) {
              const newProgress = { ...data, totalDays: decoded.days, customHabits: decoded.habits, strictMode: decoded.mode === 'strict' };
              setProgress(newProgress);
              saveProgress(newProgress);
              soundService.playSuccess();
              window.history.replaceState({}, document.title, window.location.pathname);
           }
-       } catch (e) {
-          console.error("Invalid config");
-       }
+       } catch (e) { console.error("Invalid config"); }
     }
     
     // Setup Supabase Listener
@@ -164,14 +166,12 @@ export default function App() {
          if (session) {
            syncFromCloud().then((cloudData) => {
              if (cloudData) {
-               // Re-apply date logic to cloud data just in case
                const start = new Date(cloudData.startDate || new Date().toISOString());
                const now = new Date();
                start.setHours(0,0,0,0);
                now.setHours(0,0,0,0);
                const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                const calculatedDay = Math.min(cloudData.totalDays, Math.max(1, diffDays + 1));
-               
                const finalData = { ...cloudData, currentDay: calculatedDay };
                setProgress(finalData);
                setViewingDay(calculatedDay);
@@ -182,14 +182,12 @@ export default function App() {
       
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         setUserSession(session);
-        // Re-sync on login detection
         if (_event === 'SIGNED_IN' && session) {
            syncFromCloud().then(d => d && setProgress(d));
         }
       });
       return () => subscription.unsubscribe();
     }
-
   }, []);
 
   // Network Listener
@@ -204,46 +202,41 @@ export default function App() {
     }
   }, []);
 
-  // Privacy Blur Logic & Day Rollover Check
+  // Privacy Blur & Day Rollover Check
   useEffect(() => {
+    const checkDateUpdate = () => {
+      const data = getProgress();
+      if (data.startDate) {
+         const start = new Date(data.startDate);
+         const now = new Date();
+         start.setHours(0,0,0,0);
+         now.setHours(0,0,0,0);
+         const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+         const calculatedDay = Math.min(data.totalDays, Math.max(1, diffDays + 1));
+         
+         if (calculatedDay !== data.currentDay) {
+           const updated = { ...data, currentDay: calculatedDay };
+           setProgress(updated);
+           setViewingDay(calculatedDay);
+           saveProgress(updated);
+         }
+      }
+    };
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (progress.preferences?.privacyBlurEnabled) {
-          setIsBlurred(true);
-        }
+        if (progress.preferences?.privacyBlurEnabled) setIsBlurred(true);
       } else {
-        // App became visible
-        if (progress.preferences?.privacyBlurEnabled) {
-          setTimeout(() => setIsBlurred(false), 100);
-        }
-        
-        // Check Day Rollover
-        const data = getProgress();
-        if (data.startDate) {
-           const start = new Date(data.startDate);
-           const now = new Date();
-           start.setHours(0,0,0,0);
-           now.setHours(0,0,0,0);
-           const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-           const calculatedDay = Math.min(data.totalDays, Math.max(1, diffDays + 1));
-           
-           if (calculatedDay !== data.currentDay) {
-             console.log("Resumed app: advancing day");
-             const updated = { ...data, currentDay: calculatedDay };
-             setProgress(updated);
-             setViewingDay(calculatedDay);
-             saveProgress(updated);
-           }
-        }
+        if (progress.preferences?.privacyBlurEnabled) setTimeout(() => setIsBlurred(false), 100);
+        checkDateUpdate();
       }
     };
     
-    const handleBlur = () => {
-       if (progress.preferences?.privacyBlurEnabled) setIsBlurred(true);
-    };
-    const handleFocus = () => {
-       if (progress.preferences?.privacyBlurEnabled) setIsBlurred(false);
-    };
+    // Check every minute
+    const interval = setInterval(checkDateUpdate, 60000);
+    
+    const handleBlur = () => { if (progress.preferences?.privacyBlurEnabled) setIsBlurred(true); };
+    const handleFocus = () => { if (progress.preferences?.privacyBlurEnabled) setIsBlurred(false); };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
@@ -253,17 +246,14 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
     };
   }, [progress.preferences?.privacyBlurEnabled, progress.totalDays, progress.currentDay]);
 
-  // Notification Scheduling Logic
+  // Notifications
   useEffect(() => {
     if (!progress.preferences?.notifications?.enabled) return;
-    
-    // Check permission state again to be safe
-    if ('Notification' in window && Notification.permission !== 'granted') {
-      return;
-    }
+    if ('Notification' in window && Notification.permission !== 'granted') return;
 
     const checkNotificationTime = () => {
       const now = new Date();
@@ -281,38 +271,31 @@ export default function App() {
         if (completedCount < habitsCount) {
            try {
              new Notification(`Project ${progress.totalDays} Reminder`, {
-               body: `Day ${progress.currentDay}: You have ${habitsCount - completedCount} habits remaining. Stay disciplined.`,
-               icon: '/favicon.ico',
-               requireInteraction: true
+               body: `Day ${progress.currentDay}: You have ${habitsCount - completedCount} habits remaining.`,
+               icon: '/favicon.ico'
              });
              sessionStorage.setItem(notificationKey, 'true');
-             soundService.playClick();
-           } catch (e) {
-             console.error("Notification failed", e);
-           }
+           } catch (e) {}
         }
       }
     };
 
     const interval = setInterval(checkNotificationTime, 30000);
     return () => clearInterval(interval);
-  }, [progress.preferences?.notifications, progress.currentDay, progress.history, progress.customHabits, progress.totalDays]);
+  }, [progress.preferences?.notifications, progress.currentDay, progress.history]);
 
-  // Daily Motivation Fetcher
+  // Daily Motivation
   useEffect(() => {
     const fetchMotivation = async () => {
       setLoadingMotiv(true);
-      // Pass isOnline to service? Service checks navigator.onLine itself.
       const msg = await getDailyMotivation(progress.currentDay, progress.totalDays, progress.aiPersona, progress.customPersonaPrompt);
       setMotivation(msg);
       setLoadingMotiv(false);
     };
-    if (currentView === 'dashboard') {
-        fetchMotivation();
-    }
+    if (currentView === 'dashboard') fetchMotivation();
   }, [progress.currentDay, progress.totalDays, progress.aiPersona, currentView, isOnline]);
 
-  // Achievement Queue Processor
+  // Achievements
   useEffect(() => {
     if (!currentAchievement && achievementQueue.length > 0) {
       setCurrentAchievement(achievementQueue[0]);
@@ -320,102 +303,76 @@ export default function App() {
     }
   }, [achievementQueue, currentAchievement]);
 
-  // Keyboard Shortcuts
+  // Keyboard Shortcuts - Wrapped in useCallback isn't strictly necessary for window events but good practice
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    if (e.key === 'Escape') {
+      setShowShortcuts(false); setShowShareCard(false); setActiveTimerHabit(null);
+      setActiveGuideHabit(null); setShowSOS(false); setZenMode(false);
+      setShowAICoach(false); setShowFocusSession(false); setShowSnapshot(false);
+      if (currentAchievement) setCurrentAchievement(null);
+      return;
+    }
+
+    if (e.key === '?' && e.shiftKey) setShowShortcuts(prev => !prev);
+
+    if (currentView === 'dashboard' && !zenMode && !showSOS && !showAICoach) {
+      const num = parseInt(e.key);
+      if (!isNaN(num) && num >= 1 && num <= 9) {
+        const habitIndex = num - 1;
+        const habit = progress.customHabits[habitIndex];
+        if (habit) handleToggleHabit(habit.id);
+      }
+    }
+
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        setHighlightJournal(true);
+        setTimeout(() => setHighlightJournal(false), 1000);
+        document.getElementById('daily-journal')?.scrollIntoView({ behavior: 'smooth' });
+        const textarea = document.querySelector('#daily-journal textarea') as HTMLTextAreaElement;
+        textarea?.focus();
+    }
+  }, [currentView, zenMode, showSOS, progress.customHabits, currentAchievement, showAICoach, progress.history, progress.currentDay, viewingDay]);
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      if (e.key === 'Escape') {
-        setShowShortcuts(false);
-        setShowShareCard(false);
-        setActiveTimerHabit(null);
-        setActiveGuideHabit(null);
-        setShowSOS(false);
-        setZenMode(false);
-        setShowAICoach(false);
-        if (currentAchievement) setCurrentAchievement(null);
-        return;
-      }
-
-      if (e.key === '?' && e.shiftKey) {
-        setShowShortcuts(prev => !prev);
-      }
-
-      // Shortcut: Numbers 1-9 to toggle habits in dashboard
-      if (currentView === 'dashboard' && !zenMode && !showSOS && !showAICoach) {
-        const num = parseInt(e.key);
-        if (!isNaN(num) && num >= 1 && num <= 9) {
-          const habitIndex = num - 1;
-          const habit = progress.customHabits[habitIndex];
-          if (habit) {
-            handleToggleHabit(habit.id);
-          }
-        }
-      }
-
-      // Shortcut: Cmd+Enter to highlight journal
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-         setHighlightJournal(true);
-         setTimeout(() => setHighlightJournal(false), 1000);
-         document.getElementById('daily-journal')?.scrollIntoView({ behavior: 'smooth' });
-         const textarea = document.querySelector('#daily-journal textarea') as HTMLTextAreaElement;
-         textarea?.focus();
-      }
-    };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView, zenMode, showSOS, progress.customHabits, currentAchievement, showAICoach]);
+  }, [handleKeyDown]);
 
-  // --- Handlers ---
+  // --- Handlers (Memoized for performance) ---
 
-  const handleToggleFreeze = () => {
+  const handleToggleFreeze = useCallback(() => {
     if (viewingDay !== progress.currentDay) return;
-
     const dayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" };
     const isFrozen = !!dayData.frozen;
     const inventory = progress.streakFreezes || 0;
-
     let newHistory = { ...progress.history };
     let newInventory = inventory;
 
     if (!isFrozen) {
-      // Consume freeze
       if (inventory > 0) {
         newInventory = inventory - 1;
         newHistory[viewingDay] = { ...dayData, frozen: true };
-        soundService.playClick(); // Ice sound?
+        soundService.playClick();
       } else {
         alert("No Streak Freezes available. Buy one in the Shop!");
         return;
       }
     } else {
-      // Unfreeze (Refund)
       newInventory = inventory + 1;
       newHistory[viewingDay] = { ...dayData, frozen: false };
       soundService.playClick();
     }
-
     const newProgress = { ...progress, history: newHistory, streakFreezes: newInventory };
     setProgress(newProgress);
     saveProgress(newProgress);
-  };
+  }, [progress, viewingDay]);
 
-  const handleToggleHabit = (habitId: string) => {
-    if (viewingDay > progress.currentDay) {
-        alert("You cannot mark habits for future days.");
-        return;
-    }
+  const handleToggleHabit = useCallback((habitId: string) => {
+    if (viewingDay > progress.currentDay) { alert("You cannot mark habits for future days."); return; }
 
-    const dayData = progress.history[viewingDay] || { 
-      date: new Date().toISOString(), 
-      completedHabits: [], 
-      notes: "",
-      habitLogs: {} 
-    };
-    
-    // Prevent modification if frozen? Optional. Usually you can still do habits even if frozen.
-    
+    const dayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "", habitLogs: {} };
     const isCompleted = dayData.completedHabits.includes(habitId);
     let newCompletedHabits = [...dayData.completedHabits];
     
@@ -425,28 +382,24 @@ export default function App() {
       newCompletedHabits.push(habitId);
       soundService.playComplete();
       
-      // Confetti if all habits done
       if (newCompletedHabits.length === progress.customHabits.length && viewingDay === progress.currentDay) {
          if (typeof confetti === 'function') {
-           confetti({
-             particleCount: 100,
-             spread: 70,
-             origin: { y: 0.6 },
-             colors: ['#10b981', '#34d399', '#059669']
-           });
+           confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#10b981', '#34d399', '#059669'] });
          }
          soundService.playSuccess();
+         // Journal Guide
+         setTimeout(() => {
+            const journalEl = document.getElementById('daily-journal');
+            if (journalEl) {
+                journalEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setHighlightJournal(true);
+                setTimeout(() => setHighlightJournal(false), 2500);
+            }
+         }, 1000);
       }
     }
 
-    const newHistory = {
-      ...progress.history,
-      [viewingDay]: {
-        ...dayData,
-        completedHabits: newCompletedHabits
-      }
-    };
-    
+    const newHistory = { ...progress.history, [viewingDay]: { ...dayData, completedHabits: newCompletedHabits } };
     let newXP = progress.xp;
     if (!isCompleted) newXP += 10;
     else newXP = Math.max(0, newXP - 10);
@@ -454,93 +407,61 @@ export default function App() {
     const oldLevel = progress.level || 1;
     const newLevel = calculateLevel(newXP);
     if (newLevel > oldLevel) {
-       setAchievementQueue(prev => [...prev, {
-         type: 'level_up',
-         title: `Level ${newLevel} Reached!`,
-         description: 'Your discipline is growing stronger.',
-         level: newLevel
-       }]);
+       setAchievementQueue(prev => [...prev, { type: 'level_up', title: `Level ${newLevel} Reached!`, description: 'Your discipline is growing stronger.', level: newLevel }]);
     }
 
-    const newProgress = { 
-      ...progress, 
-      history: newHistory,
-      xp: newXP,
-      level: newLevel
-    };
-
-    const newBadges = checkBadges(newProgress);
-    if (newBadges.length > (progress.badges?.length || 0)) {
-       const latest = newBadges[newBadges.length - 1];
-       setAchievementQueue(prev => [...prev, {
-         type: 'badge',
-         title: latest.label,
-         description: latest.description,
-         badge: latest
-       }]);
+    const tempProgress = { ...progress, history: newHistory, xp: newXP, level: newLevel };
+    const updatedBadges = checkBadges(tempProgress); 
+    const oldBadges = progress.badges || [];
+    
+    const brandNewBadges = updatedBadges.filter(nb => !oldBadges.some(ob => ob.id === nb.id));
+    if (brandNewBadges.length > 0) {
+       const latest = brandNewBadges[0];
+       setAchievementQueue(prev => [...prev, { type: 'badge', title: latest.label, description: latest.description, badge: latest }]);
     }
-    newProgress.badges = newBadges;
-
+    
+    const newProgress = { ...tempProgress, badges: updatedBadges };
     setProgress(newProgress);
     saveProgress(newProgress);
-  };
+  }, [progress, viewingDay]);
 
-  const handleUpdateHabitLog = (habitId: string, log: string) => {
+  const handleUpdateHabitLog = useCallback((habitId: string, log: string) => {
     if (viewingDay > progress.currentDay) return;
-
     const dayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "", habitLogs: {} };
-    const newLogs = { ...(dayData.habitLogs || {}), [habitId]: log };
-    
-    const newHistory = {
-      ...progress.history,
-      [viewingDay]: { ...dayData, habitLogs: newLogs }
-    };
-    
+    const newHistory = { ...progress.history, [viewingDay]: { ...dayData, habitLogs: { ...(dayData.habitLogs || {}), [habitId]: log } } };
     const newProgress = { ...progress, history: newHistory };
     setProgress(newProgress);
     saveProgress(newProgress);
-  };
+  }, [progress, viewingDay]);
 
-  const handleMoodChange = (mood: Mood) => {
+  const handleMoodChange = useCallback((mood: Mood) => {
     if (viewingDay > progress.currentDay) return;
-
-    const dayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" };
-    const newHistory = {
-      ...progress.history,
-      [viewingDay]: { ...dayData, mood }
-    };
+    const currentDayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" };
+    const newHistory = { ...progress.history, [viewingDay]: { ...currentDayData, mood } };
     const newProgress = { ...progress, history: newHistory };
     setProgress(newProgress);
     saveProgress(newProgress);
     soundService.playClick();
-  };
+  }, [progress, viewingDay]);
 
-  const handleNoteChange = (text: string) => {
+  const handleNoteChange = useCallback((text: string) => {
     if (viewingDay > progress.currentDay) return;
-
-    const dayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" };
-    const newHistory = {
-      ...progress.history,
-      [viewingDay]: { ...dayData, notes: text }
-    };
+    const currentDayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" };
+    const newHistory = { ...progress.history, [viewingDay]: { ...currentDayData, notes: text } };
     const newProgress = { ...progress, history: newHistory };
     setProgress(newProgress);
     saveProgress(newProgress);
-  };
+  }, [progress, viewingDay]);
 
-  const handlePhotoChange = (photo: string | undefined) => {
+  const handlePhotoChange = useCallback((photo: string | undefined) => {
     if (viewingDay > progress.currentDay) return;
-
-    const dayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" };
-    const newHistory = {
-      ...progress.history,
-      [viewingDay]: { ...dayData, photo }
-    };
+    const currentDayData = progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" };
+    const newHistory = { ...progress.history, [viewingDay]: { ...currentDayData, photo } };
     const newProgress = { ...progress, history: newHistory };
     setProgress(newProgress);
     saveProgress(newProgress);
     if (photo) soundService.playSuccess();
-  };
+  }, [progress, viewingDay]);
 
   const handleManifestoSave = (text: string) => {
     const newProgress = { ...progress, manifesto: text };
@@ -551,24 +472,14 @@ export default function App() {
 
   const handleTimerComplete = (minutes: number, habitId: string) => {
     const currentFocus = progress.habitFocusDistribution || {};
-    const newFocus = {
-      ...currentFocus,
-      [habitId]: (currentFocus[habitId] || 0) + minutes
-    };
-    
-    const newProgress = {
-      ...progress,
-      totalFocusMinutes: (progress.totalFocusMinutes || 0) + minutes,
-      habitFocusDistribution: newFocus,
-      xp: progress.xp + (minutes * 2) 
-    };
-    
+    const newFocus = { ...currentFocus, [habitId]: (currentFocus[habitId] || 0) + minutes };
+    const newProgress = { ...progress, totalFocusMinutes: (progress.totalFocusMinutes || 0) + minutes, habitFocusDistribution: newFocus, xp: progress.xp + (minutes * 2) };
     setProgress(newProgress);
     saveProgress(newProgress);
   };
 
   const handleSOS = async () => {
-    setShowSOS(true); // Ensure modal opens
+    setShowSOS(true);
     setLoadingSOS(true);
     const msg = await getEmergencyPepTalk(progress.aiPersona, progress.customPersonaPrompt);
     setSosMessage(msg);
@@ -584,15 +495,31 @@ export default function App() {
   const isHistoryMode = viewingDay < progress.currentDay;
   const isFutureMode = viewingDay > progress.currentDay;
   const isFrozenDay = !!progress.history[viewingDay]?.frozen;
+  const incompleteHabitsCount = progress.customHabits.length - (progress.history[viewingDay]?.completedHabits.length || 0);
 
   if (!progress.userName && !progress.manifesto) {
     return <Onboarding onComplete={handleOnboardingComplete} />;
   }
 
+  const getBackgroundGradient = () => {
+    if (viewingDay !== progress.currentDay) return 'from-zinc-950 to-zinc-900';
+    if (completionRatio === 0) return 'from-zinc-950 to-zinc-900';
+    if (completionRatio < 0.3) return 'from-indigo-950/30 to-zinc-950';
+    if (completionRatio < 0.6) return 'from-indigo-900/40 to-purple-950/20';
+    if (completionRatio < 1) return 'from-emerald-900/30 to-indigo-950/30';
+    return 'from-emerald-900/40 to-yellow-900/20';
+  };
+
   return (
     <div className={`
-      min-h-screen bg-background text-zinc-100 font-sans selection:bg-emerald-500/30 selection:text-emerald-200
+      min-h-screen bg-background text-zinc-100 font-sans selection:bg-emerald-500/30 selection:text-emerald-200 relative transition-colors duration-1000
     `}>
+      {/* Global Noise Texture */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.035] bg-noise mix-blend-overlay" />
+
+      {/* Dynamic Background Layer */}
+      <div className={`fixed inset-0 bg-gradient-to-b ${getBackgroundGradient()} transition-all duration-1000 pointer-events-none z-0`} />
+      
       {/* Network Status Bar */}
       {!isOnline && (
          <div className="fixed top-0 left-0 right-0 bg-yellow-600 text-white text-[10px] font-bold text-center py-1 z-[60] flex items-center justify-center gap-2">
@@ -631,6 +558,14 @@ export default function App() {
         <AchievementModal event={currentAchievement} onClose={() => setCurrentAchievement(null)} />
       )}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showSnapshot && (
+        <DaySnapshotModal 
+           day={viewingDay}
+           data={progress.history[viewingDay] || { date: new Date().toISOString(), completedHabits: [], notes: "" }}
+           habits={progress.customHabits}
+           onClose={() => setShowSnapshot(false)}
+        />
+      )}
       
       {/* SOS Modal */}
       {showSOS && (
@@ -668,8 +603,33 @@ export default function App() {
         </div>
       )}
 
+      {/* Focus Session Overlay */}
+      {showFocusSession && (
+        <FocusSession 
+          progress={progress}
+          onCompleteHabit={handleToggleHabit}
+          onClose={() => setShowFocusSession(false)}
+        />
+      )}
+
+      {/* FAB: AI Coach Trigger - FIXED NO TEXT & SAFE AREA */}
+      {!zenMode && currentView === 'dashboard' && (
+        <button
+          onClick={() => setShowAICoach(true)}
+          className="fixed bottom-24 right-4 z-[55] bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 hover:scale-110 active:scale-95 transition-all border border-indigo-500/50 group"
+          style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <MessageSquare size={24} fill="currentColor" />
+          {/* Pulse Effect */}
+          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+          </span>
+        </button>
+      )}
+
       {/* --- Main Layout --- */}
-      <div className="max-w-4xl mx-auto min-h-screen flex flex-col md:border-x border-zinc-900 bg-black/50 relative">
+      <div className="max-w-4xl mx-auto min-h-screen flex flex-col md:border-x border-zinc-900 bg-black/20 backdrop-blur-sm relative z-10 shadow-2xl">
         
         {/* Header */}
         {!zenMode && (
@@ -684,9 +644,8 @@ export default function App() {
                   <LifeBuoy size={18} />
                 </button>
                 <div>
-                  <h1 className="text-sm font-bold text-zinc-500 uppercase tracking-widest">Day {progress.currentDay}</h1>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-black text-white">Project {progress.totalDays}</span>
+                    <span className="text-xl font-black text-white tracking-tight">Project {progress.totalDays}</span>
                     {isHistoryMode && (
                        <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-500 text-[10px] font-bold rounded border border-yellow-500/30 flex items-center gap-1">
                          <History size={10} /> History
@@ -723,9 +682,13 @@ export default function App() {
                     >
                       <ChevronLeft size={16} />
                     </button>
-                    <span className={`text-xs font-bold font-mono ${isHistoryMode ? 'text-yellow-500' : 'text-zinc-300'}`}>
+                    <button
+                       onClick={() => setShowSnapshot(true)}
+                       className={`text-xs font-bold font-mono hover:text-white transition-colors ${isHistoryMode ? 'text-yellow-500' : 'text-zinc-300'}`}
+                       title="View Snapshot"
+                    >
                         DAY {viewingDay} {viewingDay === progress.currentDay && "(TODAY)"}
-                    </span>
+                    </button>
                     <button 
                       onClick={() => setViewingDay(Math.min(progress.totalDays, viewingDay + 1))}
                       disabled={viewingDay >= progress.totalDays}
@@ -735,7 +698,7 @@ export default function App() {
                     </button>
                  </div>
 
-                 {/* Freeze Button (Only visible today or if frozen, and if user has inventory or already frozen) */}
+                 {/* Freeze Button */}
                  {(viewingDay === progress.currentDay) && (
                    <button
                      onClick={handleToggleFreeze}
@@ -753,14 +716,25 @@ export default function App() {
                      <Snowflake size={18} />
                    </button>
                  )}
+
+                 {/* Snapshot Button for History */}
+                 {(progress.history[viewingDay]) && (
+                   <button
+                     onClick={() => setShowSnapshot(true)}
+                     className="h-full aspect-square flex items-center justify-center rounded-xl border bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-500 hover:text-white transition-colors"
+                     title="View Daily Snapshot"
+                   >
+                     <ImageIcon size={18} /> 
+                   </button>
+                 )}
               </div>
             )}
           </header>
         )}
 
         {/* Content Body */}
-        <main className="flex-1 p-4 md:p-6 space-y-8 overflow-y-auto overflow-x-hidden pb-32">
-          
+        <main className="flex-1 p-4 md:p-6 space-y-8 overflow-y-auto overflow-x-hidden pb-40">
+          {/* ... (rest of render) ... */}
           {currentView === 'dashboard' && (
              <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
                 
@@ -786,9 +760,21 @@ export default function App() {
                 {/* 2. Habits Grid */}
                 <div className="space-y-3">
                    <div className="flex justify-between items-end px-1">
-                      <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                        {isHistoryMode ? `Habits Log (Day ${viewingDay})` : "Today's Targets"}
-                      </h2>
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                          {isHistoryMode ? `Habits Log (Day ${viewingDay})` : "Today's Targets"}
+                        </h2>
+                        {viewingDay === progress.currentDay && incompleteHabitsCount > 0 && (
+                          <button 
+                            onClick={() => setShowFocusSession(true)}
+                            className="relative flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-full transition-all shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 hover:scale-105 active:scale-95 group overflow-hidden"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                            <Play size={10} fill="currentColor" className="animate-pulse" />
+                            <span className="relative z-10">Start Routine</span>
+                          </button>
+                        )}
+                      </div>
                       <div className="text-[10px] text-zinc-600 font-mono hidden md:block">
                         Press 1-{progress.customHabits.length} to toggle
                       </div>
@@ -800,13 +786,31 @@ export default function App() {
                         const completed = dayData?.completedHabits.includes(habit.id) || false;
                         const log = dayData?.habitLogs?.[habit.id] || "";
                         
-                        // Calculate Streak for this specific habit
+                        // Calculate Streak logic...
                         let streak = 0;
-                        if (completed) streak = 1; // Start with 1 if done today
-                        // Count backwards
+                        if (completed) streak = 1;
                         for(let i = viewingDay - 1; i >= 1; i--) {
-                            if (progress.history[i]?.completedHabits.includes(habit.id)) streak++;
-                            else break;
+                            const hData = progress.history[i];
+                            if (hData?.completedHabits.includes(habit.id)) {
+                                streak++;
+                            } else if (hData?.frozen) {
+                                streak++; 
+                            } else {
+                                break;
+                            }
+                        }
+                        // Preview streak for today
+                        if (!completed && viewingDay === progress.currentDay) {
+                            let prevStreak = 0;
+                            for(let i = viewingDay - 1; i >= 1; i--) {
+                                const hData = progress.history[i];
+                                if (hData?.completedHabits.includes(habit.id) || hData?.frozen) {
+                                    prevStreak++;
+                                } else {
+                                    break;
+                                }
+                            }
+                            if (prevStreak > 0) streak = prevStreak;
                         }
 
                         return (
@@ -840,7 +844,7 @@ export default function App() {
                    highlight={highlightJournal}
                 />
                 
-                {/* 4. Daily Fuel (AI Motivation) - Bottom Footer */}
+                {/* 4. Daily Fuel (AI Motivation) */}
                 {viewingDay === progress.currentDay && (
                   <div className="mt-8 pt-8 border-t border-zinc-800/50 text-center px-4 pb-8 relative">
                      <div className="relative z-10 flex flex-col items-center gap-3">
@@ -881,27 +885,6 @@ export default function App() {
           )}
 
         </main>
-
-        {/* FAB: AI Coach Trigger */}
-        {!zenMode && currentView === 'dashboard' && (
-          <button
-            onClick={() => setShowAICoach(true)}
-            className="fixed bottom-24 right-4 z-50 bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 hover:scale-110 active:scale-95 transition-all border border-indigo-500/50 group"
-          >
-            <MessageSquare size={24} fill="currentColor" />
-            
-            {/* Pulse Effect */}
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-            </span>
-
-            {/* Label Tooltip */}
-            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-zinc-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-xl">
-               AI Coach
-            </span>
-          </button>
-        )}
 
         {/* Bottom Nav */}
         {!zenMode && (

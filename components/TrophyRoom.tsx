@@ -1,13 +1,19 @@
 
 import React, { useState } from 'react';
-import * as Icons from 'lucide-react';
+import { 
+  ChevronDown, ChevronUp, Award, 
+  Footprints, Sword, Mountain, ShieldAlert, Crown, Circle
+} from 'lucide-react';
 import { UserProgress } from '../types';
 import { AVAILABLE_BADGES } from '../services/gamificationService';
-import { ChevronDown, ChevronUp, Award } from 'lucide-react';
 
 interface TrophyRoomProps {
   progress: UserProgress;
 }
+
+const BADGE_ICON_MAP: Record<string, React.ElementType> = {
+  Footprints, Sword, Mountain, ShieldAlert, Crown, Circle
+};
 
 export const TrophyRoom: React.FC<TrophyRoomProps> = ({ progress }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -65,7 +71,7 @@ export const TrophyRoom: React.FC<TrophyRoomProps> = ({ progress }) => {
                {AVAILABLE_BADGES.map(badge => {
                  const isUnlocked = progress.badges?.some(b => b.id === badge.id);
                  if (!isUnlocked) return null;
-                 const IconComp = (Icons as any)[badge.icon] || Icons.Circle;
+                 const IconComp = BADGE_ICON_MAP[badge.icon] || BADGE_ICON_MAP.Circle;
                  return (
                    <div key={badge.id} className={`w-8 h-8 rounded-full border-2 border-surface bg-zinc-800 flex items-center justify-center ${badge.color}`} title={badge.label}>
                      <IconComp size={14} />
@@ -100,7 +106,7 @@ export const TrophyRoom: React.FC<TrophyRoomProps> = ({ progress }) => {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {AVAILABLE_BADGES.map((badge) => {
               const isUnlocked = progress.badges?.some(b => b.id === badge.id);
-              const IconComp = (Icons as any)[badge.icon] || Icons.Circle;
+              const IconComp = BADGE_ICON_MAP[badge.icon] || BADGE_ICON_MAP.Circle;
 
               return (
                 <div 

@@ -1,11 +1,10 @@
-
 import React, { useState, useMemo } from 'react';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { UserProgress, DayData, Mood } from '../types';
+import { UserProgress, Mood } from '../types';
 import { TrophyRoom } from './TrophyRoom';
 import { Gallery } from './Gallery';
 import { Heatmap } from './Heatmap';
-import { ChartBar, ImageIcon, Search, Sparkles, TrendingUp, TrendingDown, ShoppingBag, Snowflake, Clock, Flame, RefreshCw, Zap, BookOpen } from 'lucide-react';
+import { ChartBar, Search, Sparkles, TrendingUp, TrendingDown, ShoppingBag, Snowflake, Clock, Flame, RefreshCw, Zap, BookOpen } from 'lucide-react';
 import { getPatternAnalysis } from '../services/geminiService';
 import { SHOP_ITEMS, buyItem } from '../services/gamificationService';
 import { saveProgress } from '../services/storageService';
@@ -32,7 +31,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
     const totalDays = progress.totalDays || 50;
     const habitCount = progress.customHabits.length;
 
-    // Mood Mapping
     const moodValue = (mood?: Mood): number | null => {
       switch(mood) {
         case 'great': return 5;
@@ -44,7 +42,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
       }
     };
 
-    // Calculate completion and mood data
     const data = Array.from({ length: totalDays }, (_, i) => {
       const dayNum = i + 1;
       const dayData = progress.history[dayNum];
@@ -62,14 +59,11 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
 
     const chartData = data.slice(0, Math.max(7, progress.currentDay));
 
-    // Current Streak Calculation (Backwards from today)
     let currentStreak = 0;
-    // Check today first
     const todayData = progress.history[progress.currentDay];
     if (todayData && (todayData.completedHabits.length === habitCount || todayData.frozen)) {
       currentStreak++;
     }
-    // Check backwards from yesterday
     for (let i = progress.currentDay - 1; i >= 1; i--) {
       const dayData = progress.history[i];
       if (dayData && (dayData.completedHabits.length === habitCount || dayData.frozen)) {
@@ -79,7 +73,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
       }
     }
 
-    // Best Streak Calculation (Forward Scan)
     let bestStreak = 0;
     let tempStreak = 0;
     for (let i = 1; i <= progress.currentDay; i++) {
@@ -92,7 +85,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
         if (tempStreak > bestStreak) bestStreak = tempStreak;
     }
 
-    // Habit Specific Stats
     const habitStats = progress.customHabits.map(habit => {
       let completedCount = 0;
       for(let i=1; i<=progress.currentDay; i++) {
@@ -107,7 +99,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
     const bestHabit = habitStats[0];
     const worstHabit = habitStats[habitStats.length - 1];
 
-    // Focus Data
     const focusData = progress.customHabits.map(habit => ({
       name: habit.label,
       minutes: progress.habitFocusDistribution?.[habit.id] || 0
@@ -161,13 +152,21 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
     return `${hrs}h ${mins}m`;
   };
 
+  // Dark theme styles for Recharts
+  const chartTooltipStyle = { 
+    backgroundColor: '#18181b', 
+    borderColor: '#27272a', 
+    color: '#e4e4e7', 
+    fontSize: '11px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* Gamification Section */}
       <TrophyRoom progress={progress} />
 
-      {/* Tab Toggle */}
       <div className="flex p-1 bg-zinc-900 rounded-lg w-fit border border-zinc-800">
         <button
           onClick={() => setActiveTab('charts')}
@@ -187,10 +186,8 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
 
       {activeTab === 'charts' ? (
         <>
-          {/* Main Visualizer: Challenge Grid */}
           <Heatmap progress={progress} />
 
-          {/* Key Metrics Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="p-4 bg-surface border border-zinc-800 rounded-xl">
               <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Current Day</p>
@@ -221,14 +218,11 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
             </div>
           </div>
 
-          {/* Insights & Shop Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-             {/* AI Pattern Hunter */}
              <div className="lg:col-span-2 p-5 bg-indigo-950/10 border border-indigo-900/30 rounded-xl relative overflow-hidden group flex flex-col justify-between">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                    <Sparkles size={80} className="text-indigo-500" />
                 </div>
-                
                 <div className="flex justify-between items-start mb-3 relative z-10">
                   <div>
                      <h3 className="font-bold text-white flex items-center gap-2 text-sm">
@@ -259,7 +253,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                     )}
                   </div>
                 </div>
-
                 {(progress.cachedPattern || loadingPatterns) && (
                    <div className="bg-black/20 p-3 rounded-lg border border-indigo-500/20 text-indigo-100 text-xs leading-relaxed animate-in fade-in relative">
                       {loadingPatterns ? (
@@ -279,7 +272,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                 )}
              </div>
 
-             {/* XP Shop */}
              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 relative overflow-hidden flex flex-col">
                  <div className="flex justify-between items-center mb-4 relative z-10">
                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
@@ -290,7 +282,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                      {Math.floor(progress.xp)} XP
                    </div>
                  </div>
-
                  <div className="space-y-3 relative z-10 flex-1">
                    {SHOP_ITEMS.map(item => (
                      <div key={item.id} className="p-3 bg-zinc-950/50 border border-zinc-800 rounded-lg flex items-center justify-between group hover:border-zinc-700 transition-colors">
@@ -318,107 +309,60 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                      </div>
                    ))}
                  </div>
-                 
                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
              </div>
           </div>
 
-          {/* Strongest / Weakest Insights */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="bg-emerald-950/10 border border-emerald-900/30 p-3 rounded-xl flex items-center gap-3">
-               <div className="p-2 bg-emerald-500/10 rounded-full text-emerald-400">
-                 <TrendingUp size={16} />
-               </div>
-               <div>
-                 <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Strongest Habit</p>
-                 <div className="flex items-baseline gap-2">
-                   <p className="text-white font-medium text-sm">{bestHabit?.label || "None"}</p>
-                   <p className="text-[10px] text-emerald-500/70">{bestHabit?.rate || 0}%</p>
-                 </div>
-               </div>
+               <div className="p-2 bg-emerald-500/10 rounded-full text-emerald-400"><TrendingUp size={16} /></div>
+               <div><p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Strongest Habit</p><div className="flex items-baseline gap-2"><p className="text-white font-medium text-sm">{bestHabit?.label || "None"}</p><p className="text-[10px] text-emerald-500/70">{bestHabit?.rate || 0}%</p></div></div>
              </div>
-
              <div className="bg-red-950/10 border border-red-900/30 p-3 rounded-xl flex items-center gap-3">
-               <div className="p-2 bg-red-500/10 rounded-full text-red-400">
-                 <TrendingDown size={16} />
-               </div>
-               <div>
-                 <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Needs Focus</p>
-                 <div className="flex items-baseline gap-2">
-                   <p className="text-white font-medium text-sm">{worstHabit?.label || "None"}</p>
-                   <p className="text-[10px] text-red-500/70">{worstHabit?.rate || 0}%</p>
-                 </div>
-               </div>
+               <div className="p-2 bg-red-500/10 rounded-full text-red-400"><TrendingDown size={16} /></div>
+               <div><p className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Needs Focus</p><div className="flex items-baseline gap-2"><p className="text-white font-medium text-sm">{worstHabit?.label || "None"}</p><p className="text-[10px] text-red-500/70">{worstHabit?.rate || 0}%</p></div></div>
              </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Focus Distribution Chart */}
             <div className="h-56 bg-surface border border-zinc-800 rounded-xl p-4">
               <h3 className="text-xs font-bold text-zinc-400 mb-2 flex items-center gap-2 uppercase tracking-wide">
-                <Clock size={14} className="text-indigo-400" />
-                Focus Breakdown
+                <Clock size={14} className="text-indigo-400" /> Focus Breakdown
               </h3>
               {focusData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="85%">
                   <BarChart data={focusData} layout="vertical" margin={{ left: 10, right: 10 }}>
                      <XAxis type="number" hide />
                      <YAxis dataKey="name" type="category" width={80} tick={{fill: '#a1a1aa', fontSize: 9}} interval={0} />
-                     <Tooltip 
-                       contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff', fontSize: 11 }}
-                       cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                     />
-                     <Bar dataKey="minutes" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={16}>
-                        {focusData.map((entry, index) => (
-                           <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#818cf8' : '#6366f1'} />
-                        ))}
+                     <Tooltip contentStyle={chartTooltipStyle} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
+                     <Bar dataKey="minutes" radius={[0, 4, 4, 0]} barSize={16}>
+                        {focusData.map((_, index) => (<Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#818cf8' : '#6366f1'} />))}
                      </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-2 pb-8">
-                  <Clock size={20} className="opacity-30" />
-                  <p className="text-[10px]">No focus data recorded.</p>
-                </div>
+                <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-2 pb-8"><Clock size={20} className="opacity-30" /><p className="text-[10px]">No focus data recorded.</p></div>
               )}
             </div>
 
-            {/* Mood Chart */}
             <div className="h-56 bg-surface border border-zinc-800 rounded-xl p-4">
               <h3 className="text-xs font-bold text-zinc-400 mb-2 flex items-center gap-2 uppercase tracking-wide">
-                <Zap size={14} className="text-yellow-500" />
-                Mood Trend
+                <Zap size={14} className="text-yellow-500" /> Mood Trend
               </h3>
               <ResponsiveContainer width="100%" height="85%">
                 <LineChart data={chartData}>
                   <XAxis dataKey="day" hide />
                   <YAxis domain={[1, 5]} hide />
-                  <Tooltip 
-                     contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff', fontSize: 11 }}
-                     formatter={(value: number) => {
-                        const labels = ['Terrible', 'Bad', 'Neutral', 'Good', 'Great'];
-                        return [labels[value-1] || 'N/A', 'Mood'];
-                     }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="mood" 
-                    stroke="#f59e0b" 
-                    strokeWidth={2}
-                    dot={{ fill: '#f59e0b', r: 2 }}
-                    activeDot={{ r: 4 }}
-                    connectNulls
-                  />
+                  <Tooltip contentStyle={chartTooltipStyle} formatter={(value: number) => [['Terrible', 'Bad', 'Neutral', 'Good', 'Great'][value-1] || 'N/A', 'Mood']} />
+                  <Line type="monotone" dataKey="mood" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 2 }} activeDot={{ r: 4 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
           
-          {/* Consistency Chart */}
           <div className="h-48 bg-surface border border-zinc-800 rounded-xl p-4">
             <h3 className="text-xs font-bold text-zinc-400 mb-2 flex items-center gap-2 uppercase tracking-wide">
-              <TrendingUp size={14} />
-              Habit Completion History
+              <TrendingUp size={14} /> Habit Completion History
             </h3>
             <ResponsiveContainer width="100%" height="85%">
               <AreaChart data={chartData}>
@@ -429,18 +373,8 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ progress, onUpdate
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="day" hide />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff', fontSize: 11 }}
-                  itemStyle={{ color: '#10b981' }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="completed" 
-                  stroke="#10b981" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorCompleted)" 
-                />
+                <Tooltip contentStyle={chartTooltipStyle} itemStyle={{ color: '#10b981' }} />
+                <Area type="monotone" dataKey="completed" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCompleted)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

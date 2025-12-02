@@ -135,7 +135,7 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
   // Render Minimized (Pill)
   if (isMinimized) {
     return (
-      <div className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-50 animate-in slide-in-from-bottom-10 fade-in">
+      <div className="fixed bottom-24 left-4 md:bottom-8 md:left-8 z-50 animate-in slide-in-from-bottom-10 fade-in">
         <div className="bg-zinc-900 border border-zinc-800 rounded-full shadow-2xl shadow-black p-1 pr-4 flex items-center gap-3">
           <div 
             className={`
@@ -164,8 +164,9 @@ export const FloatingTimer: React.FC<FloatingTimerProps> = ({ habit, onClose, on
   }
 
   // Render Expanded
+  // FIX: Center horizontally on mobile to avoid FAB overlap
   return (
-    <div className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-50 animate-in zoom-in-95 duration-300">
+    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:bottom-8 md:right-8 z-[51] animate-in zoom-in-95 duration-300">
       <div className="bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/80 w-72 overflow-hidden">
         {/* Header */}
         <div className="bg-zinc-900/50 p-3 flex items-center justify-between border-b border-zinc-800 relative">

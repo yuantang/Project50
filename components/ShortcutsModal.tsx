@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { X, Keyboard } from 'lucide-react';
 
@@ -24,15 +25,19 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full relative shadow-2xl animate-in zoom-in-95 duration-200">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full relative shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+        
+        {/* Global Noise Texture */}
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.035] bg-noise mix-blend-overlay" />
+
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors"
+          className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors relative z-10"
         >
           <X size={20} />
         </button>
 
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-6 relative z-10">
           <div className="p-3 bg-zinc-800 rounded-xl text-zinc-400 border border-zinc-700">
             <Keyboard size={24} />
           </div>
@@ -42,7 +47,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ onClose }) => {
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 relative z-10">
           {shortcuts.map((s, i) => (
             <div key={i} className="flex items-center justify-between p-3 bg-black/20 rounded-lg border border-zinc-800/50">
                <span className="text-zinc-300 font-medium text-sm">{s.description}</span>
@@ -57,7 +62,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ onClose }) => {
           ))}
         </div>
         
-        <div className="mt-6 text-center text-xs text-zinc-600">
+        <div className="mt-6 text-center text-xs text-zinc-600 relative z-10">
           Shortcuts are disabled when typing in text fields.
         </div>
       </div>

@@ -18,7 +18,7 @@ export const MoodSelector: React.FC<MoodSelectorProps> = ({ selected, onSelect, 
   ];
 
   return (
-    <div className="flex justify-between items-center bg-black/20 p-2 rounded-xl">
+    <div className="flex justify-between items-center bg-black/20 p-2 rounded-xl border border-white/5">
       {moods.map((m) => {
         const isSelected = selected === m.value;
         const Icon = m.icon;
@@ -29,18 +29,21 @@ export const MoodSelector: React.FC<MoodSelectorProps> = ({ selected, onSelect, 
             onClick={() => !disabled && onSelect(m.value)}
             disabled={disabled}
             className={`
-              flex flex-col items-center gap-1 p-2 rounded-lg transition-all duration-200
-              ${isSelected ? 'bg-zinc-800 scale-110 shadow-lg' : 'hover:bg-zinc-800/50 opacity-60 hover:opacity-100'}
+              flex flex-col items-center gap-1 p-2 rounded-lg transition-all duration-300 relative overflow-hidden group
+              ${isSelected ? 'bg-zinc-800 shadow-lg ring-1 ring-white/10' : 'hover:bg-zinc-800/50 opacity-60 hover:opacity-100'}
               ${disabled ? 'cursor-default opacity-40 hover:opacity-40 hover:bg-transparent' : ''}
             `}
           >
+            {isSelected && <div className={`absolute inset-0 opacity-10 bg-current ${m.color}`} />}
+            
             <Icon 
               size={24} 
-              className={`transition-colors ${isSelected ? m.color : 'text-zinc-400'}`} 
+              className={`transition-all duration-300 ${isSelected ? `${m.color} scale-110` : 'text-zinc-400 group-hover:scale-105'}`} 
               fill={isSelected ? 'currentColor' : 'none'}
               fillOpacity={0.2}
+              strokeWidth={isSelected ? 2.5 : 2}
             />
-            <span className={`text-[10px] font-medium ${isSelected ? 'text-zinc-200' : 'text-zinc-600'}`}>
+            <span className={`text-[10px] font-medium transition-colors ${isSelected ? 'text-zinc-200' : 'text-zinc-600'}`}>
               {m.label}
             </span>
           </button>
